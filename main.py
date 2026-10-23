@@ -2,70 +2,89 @@ import os
 import json
 import sqlite3
 import webbrowser
+import random
 from kivy.app import App
 from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.core.window import Window
-from kivy.graphics import Color, RoundedRectangle, Ellipse
+from kivy.graphics import Color, RoundedRectangle, Ellipse, Line
 from kivy.metrics import dp, sp
-from kivy.properties import ListProperty, NumericProperty, StringProperty
+from kivy.properties import ListProperty, NumericProperty, StringProperty, BooleanProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.image import Image
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
-from kivy.uix.switch import Switch
-from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.widget import Widget
+from kivy.core.text import LabelBase
 from kivy.core.audio import SoundLoader
 
 # Поднимаем экран при открытии клавиатуры
 Window.softinput_mode = 'below_target'
 
+# ============ ШРИФТЫ ============
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FONT_INTER_REG = os.path.join(BASE_DIR, "fonts", "Inter-Regular.ttf")
+FONT_INTER_BOLD = os.path.join(BASE_DIR, "fonts", "Inter-Bold.ttf")
+FONT_LOGO = os.path.join(BASE_DIR, "fonts", "Montserrat-Black.ttf")
+
+# Регистрация Inter (основной текст)
+if os.path.exists(FONT_INTER_REG):
+    LabelBase.register(
+        name="AppFont", 
+        fn_regular=FONT_INTER_REG, 
+        fn_bold=FONT_INTER_BOLD if os.path.exists(FONT_INTER_BOLD) else FONT_INTER_REG
+    )
+    FONT_NAME = "AppFont"
+else:
+    FONT_NAME = "Roboto"
+
+# Регистрация Montserrat (для логотипа)
+if os.path.exists(FONT_LOGO):
+    LabelBase.register(name="LogoFont", fn_regular=FONT_LOGO)
+
 # ============ НАСТРОЙКИ ============
 TG_LINK = "https://t.me/BeamForge"
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "gdz.db")
-COVERS_DIR = os.path.join(BASE_DIR, "covers")
 DATA_FILE = os.path.join(BASE_DIR, "user_data.json")
 
 CLASSES = [5, 6, 7, 8, 9, 10, 11]
 SUBJECTS = ["Математика", "Алгебра", "Геометрия", "Русский", "Английский", "Физика", "Химия"]
 
 TOP_USERS = [
-    ("Максим", 154, (0.9, 0.3, 0.3, 1)),
-    ("Данил", 142, (0.2, 0.6, 0.9, 1)),
-    ("Саша", 128, (0.3, 0.8, 0.4, 1)),
-    ("Влад", 95, (0.9, 0.6, 0.2, 1)),
-    ("Кирилл", 84, (0.6, 0.3, 0.8, 1))
+    ("deronix", 154, (0.9, 0.3, 0.3, 1)),
+    ("sqwore", 142, (0.2, 0.6, 0.9, 1)),
+    ("морфи", 128, (0.3, 0.8, 0.4, 1)),
+    ("ритуля", 95, (0.9, 0.6, 0.2, 1)),
+    ("vanya", 84, (0.6, 0.3, 0.8, 1))
 ]
 
-FONT_NAME = "Roboto"
+ONLINE_COUNT = random.randint(12, 99)
 
-# Загрузка звука клика (если файла нет, приложение не упадет)
 try:
     CLICK_SOUND = SoundLoader.load(os.path.join(BASE_DIR, 'click.wav'))
 except:
     CLICK_SOUND = None
 
-# ============ ТЕМЫ (Неоновый красный) ============
+# ============ ТЕМЫ (Бордовый неон) ============
 LIGHT = {
-    "bg": (0.96, 0.96, 0.98, 1), "card": (1, 1, 1, 1),
-    "text": (0.0, 0.0, 0.0, 1), "subtext": (0.5, 0.5, 0.55, 1),
-    "btn_bg": (0.92, 0.92, 0.95, 1), "btn_text": (0.0, 0.0, 0.0, 1),
-    "accent": (1.0, 0.0, 0.2, 1), "accent_text": (1, 1, 1, 1), # Яркий красный
-    "glow": (1.0, 0.0, 0.2, 0.3), # Полупрозрачный красный для свечения
+    "bg": (0.96, 0.96, 0.98, 1), "card": (1, 1, 1, 0.85), "card_border": (0.8, 0.8, 0.8, 0.5),
+    "text": (0.1, 0.1, 0.12, 1), "subtext": (0.5, 0.5, 0.55, 1),
+    "btn_bg": (0.92, 0.92, 0.95, 1), "btn_text": (0.1, 0.1, 0.12, 1),
+    "accent": (0.6, 0.0, 0.1, 1), "accent_text": (1, 1, 1, 1), # Бордовый
+    "glow": (0.6, 0.0, 0.1, 0.2),
     "input_bg": (0.92, 0.92, 0.95, 1),
+    "green": (0.1, 0.8, 0.3, 1)
 }
 DARK = {
-    "bg": (0.0, 0.0, 0.0, 1), "card": (0.11, 0.11, 0.12, 1),
-    "text": (1.0, 1.0, 1.0, 1), "subtext": (0.6, 0.6, 0.65, 1),
-    "btn_bg": (0.18, 0.18, 0.2, 1), "btn_text": (1.0, 1.0, 1.0, 1),
-    "accent": (1.0, 0.1, 0.3, 1), "accent_text": (1, 1, 1, 1),
-    "glow": (1.0, 0.1, 0.3, 0.4),
-    "input_bg": (0.18, 0.18, 0.2, 1),
+    "bg": (0.08, 0.05, 0.06, 1), "card": (0.15, 0.12, 0.14, 0.7), "card_border": (0.3, 0.2, 0.25, 0.5),
+    "text": (0.95, 0.95, 0.97, 1), "subtext": (0.6, 0.6, 0.65, 1),
+    "btn_bg": (0.18, 0.15, 0.16, 1), "btn_text": (0.95, 0.95, 0.97, 1),
+    "accent": (0.8, 0.05, 0.2, 1), "accent_text": (1, 1, 1, 1), # Яркий бордовый
+    "glow": (0.8, 0.05, 0.2, 0.4),
+    "input_bg": (0.18, 0.15, 0.16, 1),
+    "green": (0.2, 1.0, 0.4, 1)
 }
 
 def get_colors():
@@ -75,7 +94,7 @@ def get_colors():
                 data = json.load(f)
                 return DARK if data.get("theme") == "dark" else LIGHT
         except: pass
-    return LIGHT
+    return DARK # По умолчанию темная
 
 def load_user():
     if os.path.exists(DATA_FILE):
@@ -85,6 +104,18 @@ def load_user():
                 return data.get("login")
         except: pass
     return None
+
+def get_user_id():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r") as f: 
+                data = json.load(f)
+                if "uid" not in data:
+                    data["uid"] = random.randint(100000, 999999)
+                    with open(DATA_FILE, "w") as out: json.dump(data, out)
+                return data["uid"]
+        except: pass
+    return "000000"
 
 def save_data(key, value):
     data = {}
@@ -108,23 +139,27 @@ def find_solution(class_num, subject, number):
     except Exception as e:
         return f"Ошибка базы: {e}", None
 
-# ============ КАСТОМНЫЕ ВИДЖЕТЫ ============
+# ============ ВИДЖЕТЫ ============
 
-class Card(BoxLayout):
-    bg_color = ListProperty([1, 1, 1, 1])
-    radius = NumericProperty(dp(16))
+class GlassCard(BoxLayout):
+    bg_color = ListProperty([1, 1, 1, 0.8])
+    border_color = ListProperty([0.8, 0.8, 0.8, 0.5])
+    radius = NumericProperty(dp(18))
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         with self.canvas.before:
             self._bg_c = Color(*self.bg_color)
             self._bg_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
-        self.bind(pos=self._update, size=self._update, bg_color=self._on_bg)
+            self._line_c = Color(*self.border_color)
+            self._line = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, self.radius), width=1.2)
+        self.bind(pos=self._update, size=self._update, bg_color=self._on_bg, border_color=self._on_border)
     def _update(self, *a):
         self._bg_r.pos = self.pos
         self._bg_r.size = self.size
+        self._line.rounded_rectangle = (self.x, self.y, self.width, self.height, self.radius)
     def _on_bg(self, *a): self._bg_c.rgba = self.bg_color
+    def _on_border(self, *a): self._line_c.rgba = self.border_color
 
-# Кнопка с неоновым свечением и звуком
 class NeonButton(Button):
     bg_color = ListProperty([1, 1, 1, 1])
     glow_color = ListProperty([1, 1, 1, 0]) 
@@ -145,7 +180,7 @@ class NeonButton(Button):
         
         with self.canvas.before:
             self._glow_c = Color(*self.glow_color)
-            self._glow_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius + dp(5)])
+            self._glow_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius + dp(4)])
             self._bg_c = Color(*self.bg_color)
             self._bg_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
             
@@ -153,27 +188,22 @@ class NeonButton(Button):
         self.bind(on_press=self._press, on_release=self._release)
         
     def _update(self, *a):
-        w, h = self.width * self.scale_val, self.height * self.scale_val
-        # Свечение (чуть больше кнопки)
-        self._glow_r.pos = (self.center_x - w/2 - dp(5), self.center_y - h/2 - dp(5))
-        self._glow_r.size = (w + dp(10), h + dp(10))
-        # Сама кнопка
-        self._bg_r.pos = (self.center_x - w/2, self.center_y - h/2)
-        self._bg_r.size = (w, h)
+        self._glow_r.pos = (self.x - dp(4), self.y - dp(4))
+        self._glow_r.size = (self.width + dp(8), self.height + dp(8))
+        self._bg_r.pos = self.pos
+        self._bg_r.size = self.size
         
     def _on_bg(self, *a): self._bg_c.rgba = self.bg_color
     def _on_glow(self, *a): self._glow_c.rgba = self.glow_color
     def _on_txt(self, *a): self.color = self.text_color
     
     def _press(self, *a): 
-        if CLICK_SOUND: CLICK_SOUND.play() # Играем звук
+        if CLICK_SOUND: CLICK_SOUND.play()
         Animation(scale_val=0.95, duration=0.05).start(self)
-        
     def _release(self, *a): 
         Animation(scale_val=1.0, duration=0.1, t="out_back").start(self)
 
-
-class Input(TextInput):
+class GlassInput(TextInput):
     bg_color = ListProperty([0.9, 0.9, 0.9, 1])
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -182,10 +212,11 @@ class Input(TextInput):
         self.background_color = (0, 0, 0, 0)
         self.font_name = FONT_NAME
         self.multiline = False
-        self.padding = [dp(15), dp(15), dp(15), dp(15)]
+        self.halign = 'left'
+        self.padding = [dp(15), dp(16), dp(15), dp(15)] # Фикс ввода
         with self.canvas.before:
             self._bg_c = Color(*self.bg_color)
-            self._bg_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(10)])
+            self._bg_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(12)])
         self.bind(pos=self._update, size=self._update, bg_color=self._on_bg)
     def _update(self, *a):
         self._bg_r.pos = self.pos
@@ -214,50 +245,129 @@ class AvatarCircle(Widget):
         self._e.size = self.size
     def _on_bg(self, *a): self._c.rgba = self.bg_color
 
+class CustomSwitch(Widget):
+    active = BooleanProperty(False)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.size_hint = (None, None)
+        self.size = (dp(50), dp(28))
+        c = get_colors()
+        with self.canvas:
+            self._bg_c = Color(*(c["accent"] if self.active else (0.3, 0.3, 0.3, 1)))
+            self._bg_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(14)])
+            self._knob_c = Color(1, 1, 1, 1)
+            self._knob = Ellipse(pos=(self.x + dp(2), self.y + dp(2)), size=(dp(24), dp(24)))
+        self.bind(pos=self._update, size=self._update, active=self._toggle)
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            self.active = not self.active
+            if CLICK_SOUND: CLICK_SOUND.play()
+            return True
+        return super().on_touch_down(touch)
+
+    def _update(self, *a):
+        self._bg_r.pos = self.pos
+        self._bg_r.size = self.size
+        self._knob.pos = (self.x + dp(2), self.y + dp(2)) if not self.active else (self.right - dp(26), self.y + dp(2))
+        self._knob.size = (dp(24), dp(24))
+
+    def _toggle(self, *a):
+        c = get_colors()
+        Animation.cancel_all(self)
+        anim = Animation(duration=0.2)
+        if self.active:
+            self._bg_c.rgba = c["accent"]
+            anim += Animation(pos=(self.right - dp(26), self.y + dp(2)))
+        else:
+            self._bg_c.rgba = (0.3, 0.3, 0.3, 1)
+            anim += Animation(pos=(self.x + dp(2), self.y + dp(2)))
+        anim.start(self._knob)
+
+class LogoLabel(Label):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.font_name = "LogoFont" if os.path.exists(FONT_LOGO) else FONT_NAME
+        self.markup = True
+        self.halign = "center"
+        self.valign = "middle"
+        self.color = (1, 1, 1, 1) 
+        with self.canvas.before:
+            self.glow_color = Color(1, 0.1, 0.2, 0.2)
+            self.glow_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[10])
+        self.bind(pos=self.update_glow, size=self.update_glow)
+
+    def update_glow(self, *args):
+        self.glow_rect.pos = (self.x - 10, self.y - 5)
+        self.glow_rect.size = (self.width + 20, self.height + 10)
+
 
 # ============ ЭКРАНЫ ============
 
-class SubscriptionScreen(AnchorLayout):
+class SplashScreen(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(anchor_x='center', anchor_y='center', **kwargs)
+        super().__init__(orientation="vertical", **kwargs)
         c = get_colors()
         Window.clearcolor = c["bg"]
+        self.add_widget(Widget())
         
-        card = Card(orientation="vertical", padding=dp(30), spacing=dp(20), size_hint=(0.9, None), height=dp(350), bg_color=c["card"])
+        # Используем наш кастомный логотип с разрядкой
+        thin_space = "\u2009"
+        logo_text = thin_space.join(list("OFFLINE")) + "\n\n" + thin_space.join(list("GDZ"))
         
+        logo = LogoLabel(text=f"[b]{logo_text}[/b]", font_size=sp(36), size_hint=(1, None), height=dp(150))
+        self.add_widget(logo)
+        self.add_widget(Widget())
+        
+        Clock.schedule_once(self.next_screen, 2.5)
+
+    def next_screen(self, dt):
+        App.get_running_app().root.clear_widgets()
+        if load_user():
+            App.get_running_app().root.add_widget(MainLayout())
+        else:
+            App.get_running_app().root.add_widget(SubscriptionScreen())
+
+class SubscriptionScreen(BoxLayout):
+    def __init__(self, **kwargs):
+        super().__init__(orientation="vertical", **kwargs)
+        c = get_colors()
+        Window.clearcolor = c["bg"]
+        self.add_widget(Widget())
+        
+        card = GlassCard(orientation="vertical", padding=dp(25), spacing=dp(15), size_hint=(0.9, None), height=dp(320), bg_color=c["card"], border_color=c["card_border"], pos_hint={"center_x": 0.5})
         card.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, color=c["accent"], font_size=sp(32), bold=True, size_hint=(1, 0.2)))
         card.add_widget(Label(text="Для продолжения подпишитесь\nна наш Telegram-канал", halign="center", font_name=FONT_NAME, color=c["subtext"], size_hint=(1, 0.3)))
         
-        btn_tg = NeonButton(text="Подписаться", bg_color=c["accent"], glow_color=c["glow"], text_color=c["accent_text"], bold=True, size_hint=(1, None), height=dp(50))
+        btn_tg = NeonButton(text="Подписаться", bg_color=c["accent"], glow_color=c["glow"], text_color=c["accent_text"], bold=True, size_hint=(1, None), height=dp(55))
         btn_tg.bind(on_press=lambda *_: webbrowser.open(TG_LINK))
         card.add_widget(btn_tg)
         
-        btn_ok = NeonButton(text="Я подписался", bg_color=c["btn_bg"], text_color=c["btn_text"], size_hint=(1, None), height=dp(50))
+        btn_ok = NeonButton(text="Я подписался", bg_color=c["btn_bg"], text_color=c["btn_text"], size_hint=(1, None), height=dp(55))
         btn_ok.bind(on_press=self.unlock)
         card.add_widget(btn_ok)
         
         self.add_widget(card)
+        self.add_widget(Widget())
 
     def unlock(self, *a):
         App.get_running_app().root.clear_widgets()
         App.get_running_app().root.add_widget(AuthScreen())
 
-class AuthScreen(AnchorLayout):
+class AuthScreen(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(anchor_x='center', anchor_y='center', **kwargs)
+        super().__init__(orientation="vertical", **kwargs)
         c = get_colors()
         Window.clearcolor = c["bg"]
+        self.add_widget(Widget())
         
-        card = Card(orientation="vertical", padding=dp(25), spacing=dp(15), size_hint=(0.9, None), height=dp(380), bg_color=c["card"])
-        
+        card = GlassCard(orientation="vertical", padding=dp(25), spacing=dp(15), size_hint=(0.9, None), height=dp(350), bg_color=c["card"], border_color=c["card_border"], pos_hint={"center_x": 0.5})
         card.add_widget(Label(text="Вход в Offline GDZ", font_name=FONT_NAME, color=c["text"], font_size=sp(22), bold=True, size_hint=(1, 0.15)))
         
-        # Поле Логина
-        self.login_input = Input(hint_text="Логин", size_hint=(1, None), height=dp(55), font_size=sp(16), bg_color=c["input_bg"], foreground_color=c["text"], cursor_color=c["accent"], hint_text_color=c["subtext"])
+        self.login_input = GlassInput(hint_text="Логин", size_hint=(1, None), height=dp(55), font_size=sp(16), bg_color=c["input_bg"], foreground_color=c["text"], cursor_color=c["accent"], hint_text_color=c["subtext"])
         card.add_widget(self.login_input)
         
-        # Поле Пароля (скрытое)
-        self.pass_input = Input(hint_text="Пароль", password=True, size_hint=(1, None), height=dp(55), font_size=sp(16), bg_color=c["input_bg"], foreground_color=c["text"], cursor_color=c["accent"], hint_text_color=c["subtext"])
+        self.pass_input = GlassInput(hint_text="Пароль", password=True, size_hint=(1, None), height=dp(55), font_size=sp(16), bg_color=c["input_bg"], foreground_color=c["text"], cursor_color=c["accent"], hint_text_color=c["subtext"])
         card.add_widget(self.pass_input)
         
         btn = NeonButton(text="Войти", bg_color=c["accent"], glow_color=c["glow"], text_color=c["accent_text"], bold=True, size_hint=(1, None), height=dp(55), font_size=sp(18))
@@ -265,14 +375,12 @@ class AuthScreen(AnchorLayout):
         card.add_widget(btn)
         
         self.add_widget(card)
+        self.add_widget(Widget())
 
     def login(self, *a):
         login = self.login_input.text.strip()
-        password = self.pass_input.text.strip()
-        
-        if login and password:
+        if login:
             save_data("login", login)
-            # Пароль тоже можно сохранить, если нужно
             App.get_running_app().root.clear_widgets()
             App.get_running_app().root.add_widget(MainLayout())
 
@@ -311,23 +419,45 @@ class HomeScreen(BoxLayout):
         c = get_colors()
         name = load_user() or "Друг"
         
-        self.add_widget(Label(text=f"Привет, {name}!", font_name=FONT_NAME, color=c["text"], font_size=sp(24), bold=True, size_hint=(1, None), height=dp(40), halign="left"))
+        self.add_widget(Label(text=f"[b]{name}[/b], добро пожаловать 👋", markup=True, font_name=FONT_NAME, color=c["text"], font_size=sp(20), size_hint=(1, None), height=dp(30), halign="left"))
+        self.add_widget(Label(text="Удачной учебы!", font_name=FONT_NAME, color=c["subtext"], font_size=sp(13), size_hint=(1, None), height=dp(20), halign="left"))
         
-        # Неоновая красная кнопка
-        btn = NeonButton(text="Списать решение", bg_color=c["accent"], glow_color=c["glow"], text_color=c["accent_text"], bold=True, size_hint=(1, None), height=dp(70), font_size=sp(20))
+        stats = GlassCard(orientation="horizontal", padding=dp(10), spacing=dp(10), size_hint=(1, None), height=dp(80), bg_color=c["card"], border_color=c["card_border"])
+        
+        col1 = BoxLayout(orientation="vertical")
+        col1.add_widget(Label(text="0", font_name=FONT_NAME, color=c["accent"], font_size=sp(20), bold=True))
+        col1.add_widget(Label(text="ЗАДАЧ", font_name=FONT_NAME, color=c["subtext"], font_size=sp(9)))
+        stats.add_widget(col1)
+        
+        col2 = BoxLayout(orientation="vertical")
+        col2.add_widget(Label(text="0", font_name=FONT_NAME, color=c["accent"], font_size=sp(20), bold=True))
+        col2.add_widget(Label(text="НАЙДЕНО", font_name=FONT_NAME, color=c["subtext"], font_size=sp(9)))
+        stats.add_widget(col2)
+        
+        col3 = BoxLayout(orientation="vertical")
+        online_box = BoxLayout(orientation="horizontal", spacing=dp(5))
+        online_box.add_widget(Widget())
+        online_box.add_widget(Label(text="●", font_name=FONT_NAME, color=c["green"], font_size=sp(14)))
+        online_box.add_widget(Label(text=str(ONLINE_COUNT), font_name=FONT_NAME, color=c["green"], font_size=sp(20), bold=True))
+        online_box.add_widget(Widget())
+        col3.add_widget(online_box)
+        col3.add_widget(Label(text="ОНЛАЙН", font_name=FONT_NAME, color=c["subtext"], font_size=sp(9)))
+        stats.add_widget(col3)
+        
+        self.add_widget(stats)
+        
+        btn = NeonButton(text="Списать решение", bg_color=c["accent"], glow_color=c["glow"], text_color=c["accent_text"], bold=True, size_hint=(1, None), height=dp(65), font_size=sp(18))
         btn.bind(on_press=lambda *_: App.get_running_app().root.children[0].switch_tab(1))
         self.add_widget(btn)
         
-        self.add_widget(Label(text="ТОП-5 СПИСЫВАЛЬЩИКОВ", font_name=FONT_NAME, color=c["subtext"], font_size=sp(12), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+        self.add_widget(Label(text="ТОП-5 СПИСЫВАЛЬЩИКОВ", font_name=FONT_NAME, color=c["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(25), halign="left"))
         
-        top_card = Card(orientation="vertical", padding=dp(15), spacing=dp(10), size_hint=(1, 1), bg_color=c["card"])
+        top_card = GlassCard(orientation="vertical", padding=dp(15), spacing=dp(8), size_hint=(1, 1), bg_color=c["card"], border_color=c["card_border"])
         
         for i, (uname, score, color) in enumerate(TOP_USERS):
-            row = BoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(15))
-            
+            row = BoxLayout(size_hint=(1, None), height=dp(45), spacing=dp(15))
             av = AvatarCircle(bg_color=color, text=uname[0].upper())
             row.add_widget(av)
-            
             row.add_widget(Label(text=f"{i+1}. {uname}", font_name=FONT_NAME, color=c["text"], font_size=sp(15), bold=True, halign="left"))
             row.add_widget(Label(text=f"{score} задач", font_name=FONT_NAME, color=c["subtext"], font_size=sp(13), halign="right"))
             top_card.add_widget(row)
@@ -361,14 +491,14 @@ class SearchScreen(BoxLayout):
             grid_subj.add_widget(b)
         layout.add_widget(grid_subj)
         
-        self.num_input = Input(hint_text="Номер задачи (например 123)", size_hint=(1, None), height=dp(55), font_size=sp(16), bg_color=c["input_bg"], foreground_color=c["text"], cursor_color=c["accent"], hint_text_color=c["subtext"])
+        self.num_input = GlassInput(hint_text="Номер задачи", size_hint=(1, None), height=dp(55), font_size=sp(16), bg_color=c["input_bg"], foreground_color=c["text"], cursor_color=c["accent"], hint_text_color=c["subtext"])
         layout.add_widget(self.num_input)
         
         btn = NeonButton(text="Найти", bg_color=c["accent"], glow_color=c["glow"], text_color=c["accent_text"], bold=True, size_hint=(1, None), height=dp(55), font_size=sp(16))
         btn.bind(on_press=self.do_search)
         layout.add_widget(btn)
         
-        self.result_card = Card(orientation="vertical", padding=dp(15), size_hint=(1, None), height=dp(0), bg_color=c["card"])
+        self.result_card = GlassCard(orientation="vertical", padding=dp(15), size_hint=(1, None), height=dp(0), bg_color=c["card"], border_color=c["card_border"])
         self.res_lbl = Label(text="", font_name=FONT_NAME, color=c["text"], size_hint_y=None, halign="left", valign="top")
         self.res_lbl.bind(width=lambda inst, w: setattr(inst, 'text_size', (w, None)))
         self.res_lbl.bind(texture_size=self.res_lbl.setter('size'))
@@ -407,21 +537,25 @@ class ProfileScreen(BoxLayout):
         super().__init__(orientation="vertical", padding=dp(20), spacing=dp(15), **kwargs)
         c = get_colors()
         name = load_user() or "Гость"
+        uid = str(get_user_id())
         
         top_box = BoxLayout(orientation="vertical", size_hint=(1, None), height=dp(120), spacing=dp(10))
-        top_box.add_widget(AvatarCircle(bg_color=c["accent"], text=name[0].upper(), size_hint=(None, None), size=(dp(70), dp(70)), pos_hint={"center_x": 0.5}))
-        top_box.add_widget(Label(text=name, font_name=FONT_NAME, color=c["text"], font_size=sp(20), bold=True))
+        av_box = BoxLayout(size_hint=(1, None), height=dp(80))
+        av_box.add_widget(Widget())
+        av_box.add_widget(AvatarCircle(bg_color=c["accent"], text=name[0].upper(), size_hint=(None, None), size=(dp(80), dp(80))))
+        av_box.add_widget(Widget())
+        top_box.add_widget(av_box)
+        top_box.add_widget(Label(text=name, font_name=FONT_NAME, color=c["text"], font_size=sp(22), bold=True))
         self.add_widget(top_box)
         
-        # Премиум карточка
-        prem = Card(orientation="vertical", padding=dp(15), size_hint=(1, None), height=dp(100), bg_color=(0.95, 0.8, 0.2, 1))
-        prem.add_widget(Label(text="Offline GDZ Premium", font_name=FONT_NAME, color=(0,0,0,1), bold=True, font_size=sp(18)))
-        prem.add_widget(Label(text="Все решения без ограничений", font_name=FONT_NAME, color=(0.2,0.2,0.2,1), font_size=sp(12)))
-        self.add_widget(prem)
+        id_card = GlassCard(orientation="horizontal", padding=dp(15), size_hint=(1, None), height=dp(60), bg_color=c["card"], border_color=c["card_border"])
+        id_card.add_widget(Label(text="МОЙ ID", font_name=FONT_NAME, color=c["subtext"], font_size=sp(12)))
+        id_card.add_widget(Label(text=uid, font_name=FONT_NAME, color=c["accent"], font_size=sp(18), bold=True))
+        self.add_widget(id_card)
         
         row_theme = BoxLayout(size_hint=(1, None), height=dp(50))
         row_theme.add_widget(Label(text="Темная тема", font_name=FONT_NAME, color=c["text"], font_size=sp(16)))
-        sw = Switch(active=(get_colors() == DARK))
+        sw = CustomSwitch(active=(get_colors() == DARK))
         sw.bind(active=self.toggle_theme)
         row_theme.add_widget(sw)
         self.add_widget(row_theme)
@@ -429,6 +563,7 @@ class ProfileScreen(BoxLayout):
         btn_tg = NeonButton(text="Наш Telegram", bg_color=c["btn_bg"], text_color=c["btn_text"], size_hint=(1, None), height=dp(50))
         btn_tg.bind(on_press=lambda *_: webbrowser.open(TG_LINK))
         self.add_widget(btn_tg)
+        self.add_widget(Widget())
 
     def toggle_theme(self, instance, value):
         save_data("theme", "dark" if value else "light")
@@ -442,13 +577,7 @@ class GdzApp(App):
         Window.clearcolor = c["bg"]
         self.title = "Offline GDZ"
         root = BoxLayout(orientation="vertical")
-        
-        name = load_user()
-        if name is None:
-            root.add_widget(SubscriptionScreen())
-        else:
-            root.add_widget(MainLayout())
-            
+        root.add_widget(SplashScreen())
         return root
 
 if __name__ == "__main__":
