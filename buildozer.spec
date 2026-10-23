@@ -10,7 +10,7 @@ source.include_patterns = gdz.db,covers/*.webp,fonts/*.ttf
 source.exclude_dirs = bin,.buildozer,__pycache__
 
 version = 0.1
-requirements = python3,kivy,pillow
+requirements = python3,kivy
 
 orientation = portrait
 fullscreen = 0
@@ -18,7 +18,7 @@ fullscreen = 0
 android.api = 33
 android.minapi = 21
 android.sdk = 33
-android.ndk = 25b
+# android.ndk = 25b
 android.archs = arm64-v8a,armeabi-v7a
 android.permissions = INTERNET
 android.allow_backup = True
