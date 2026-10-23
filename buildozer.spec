@@ -1,12 +1,12 @@
 [app]
 
-title = BeamForge GDZ
+title = Offline GDZ
 package.name = beamforge.gdz
 package.domain = org.beamforge
 
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,db,webp,ttf
-source.include_patterns = gdz.db,covers/*.webp,fonts/*.ttf
+source.include_exts = py,png,jpg,kv,atlas,db,webp,ttf,wav
+source.include_patterns = gdz.db,covers/*.webp,fonts/*.ttf,*.wav
 source.exclude_dirs = bin,.buildozer,__pycache__
 
 version = 0.1
@@ -25,4 +25,4 @@ android.accept_sdk_license = True
 
 [buildozer]
 log_level = 2
-warn_on_root = 1 1
+warn_on_root = 1
