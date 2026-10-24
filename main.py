@@ -17,17 +17,17 @@ from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
-from kivy.core.text import LabelBase
 from kivy.core.audio import SoundLoader
 
-# Поднимаем экран при открытии клавиатуры
 Window.softinput_mode = 'below_target'
 
-# ============ ПУТИ (ФИКС КРАША ANDROID) ============
+# ============ ПУТИ ============
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "gdz.db")
 
-# Функция получения безопасной папки для записи на Android
+# Жестко ставим системный шрифт, чтобы исключить вылеты
+FONT_NAME = "Roboto"
+
 def get_data_file():
     try:
         app = App.get_running_app()
@@ -36,24 +36,6 @@ def get_data_file():
     except:
         pass
     return os.path.join(BASE_DIR, "user_data.json")
-
-# ============ ШРИФТЫ (ЗАЩИТА ОТ ВЫЛЕТА) ============
-FONT_NAME = "Roboto"
-try:
-    FONT_REG = os.path.join(BASE_DIR, "fonts", "Inter-Regular.ttf")
-    FONT_BOLD = os.path.join(BASE_DIR, "fonts", "Inter-Bold.ttf")
-    if os.path.exists(FONT_REG):
-        LabelBase.register(name="AppFont", fn_regular=FONT_REG, fn_bold=FONT_BOLD if os.path.exists(FONT_BOLD) else FONT_REG)
-        FONT_NAME = "AppFont"
-except:
-    FONT_NAME = "Roboto"
-
-try:
-    FONT_LOGO = os.path.join(BASE_DIR, "fonts", "Montserrat-Black.ttf")
-    if os.path.exists(FONT_LOGO):
-        LabelBase.register(name="LogoFont", fn_regular=FONT_LOGO)
-except:
-    pass
 
 # ============ НАСТРОЙКИ ============
 TG_LINK = "https://t.me/BeamForge"
@@ -135,7 +117,6 @@ def find_solution(class_num, subject, number):
 
 # ============ ВИДЖЕТЫ ============
 
-# Безопасная карточка (без Line, чтобы не крашить OpenGL)
 class GlassCard(BoxLayout):
     bg_color = ListProperty([1, 1, 1, 0.8])
     border_color = ListProperty([0.8, 0.8, 0.8, 0.5])
@@ -151,7 +132,6 @@ class GlassCard(BoxLayout):
         self.bind(pos=self._update, size=self._update, bg_color=self._on_bg, border_color=self._on_border)
         
     def _update(self, *a):
-        # Рисуем рамку через два прямоугольника (безопасно)
         self._border_r.pos = self.pos
         self._border_r.size = self.size
         self._bg_r.pos = (self.x + 1, self.y + 1)
@@ -199,7 +179,6 @@ class NeonButton(Button):
         
     def _on_bg(self, *a): self._bg_c.rgba = self.bg_color
     def _on_glow(self, *a):
-        # Защита от пустого цвета
         gc = self.glow_color if len(self.glow_color) == 4 else [1,1,1,0]
         self._glow_c1.rgba = (gc[0], gc[1], gc[2], gc[3] * 0.3)
         self._glow_c2.rgba = (gc[0], gc[1], gc[2], gc[3] * 0.6)
@@ -248,6 +227,30 @@ class OnlineDot(Widget):
         self._e.size = self.size
     def _on_bg(self, *a): self._c.rgba = self.color_val
 
+# ============ КРАСИВЫЙ ЛОГОТИП С НЕОНОМ ============
+class NeonLogo(BoxLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        c = get_colors()
+        
+        # Создаем 3 слоя текста: размытый, средний и четкий
+        self.lbl_glow = Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(34), color=(c["accent"][0], c["accent"][1], c["accent"][2], 0.2), halign="center", valign="middle")
+        self.lbl_mid = Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(34), color=(c["accent"][0], c["accent"][1], c["accent"][2], 0.6), halign="center", valign="middle")
+        self.lbl_text = Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(34), color=(1,1,1,1), halign="center", valign="middle")
+        
+        # Накладываем их друг на друга
+        self.add_widget(self.lbl_glow)
+        self.add_widget(self.lbl_mid)
+        self.add_widget(self.lbl_text)
+        
+        # Связываем размеры и позиции, чтобы они были ровно друг на друге
+        self.bind(pos=self.update_pos, size=self.update_pos)
+
+    def update_pos(self, *args):
+        for lbl in [self.lbl_glow, self.lbl_mid, self.lbl_text]:
+            lbl.pos = self.pos
+            lbl.size = self.size
+
 # ============ ЭКРАНЫ ============
 
 class SplashScreen(BoxLayout):
@@ -255,13 +258,15 @@ class SplashScreen(BoxLayout):
         super().__init__(orientation="vertical", **kwargs)
         c = get_colors()
         Window.clearcolor = c["bg"]
+        
         self.add_widget(Widget())
         
-        thin_space = "\u2009"
-        logo_text = thin_space.join(list("OFFLINE")) + "\n\n" + thin_space.join(list("GDZ"))
-        lbl = Label(text=f"[b]{logo_text}[/b]", markup=True, halign="center", valign="middle", font_name="LogoFont" if os.path.exists(FONT_LOGO) else FONT_NAME, font_size=sp(36), color=c["accent"])
-        self.add_widget(lbl)
+        # Добавляем наш неоновый логотип
+        self.add_widget(NeonLogo(size_hint=(1, None), height=dp(80)))
+        
         self.add_widget(Widget())
+        
+        # Таймер на переход (1.5 секунды)
         Clock.schedule_once(self.next_screen, 1.5)
 
     def next_screen(self, dt):
