@@ -211,6 +211,7 @@ class BorderedButton(Button):
         self._bg_r.pos = (self.x + dp(1), self.y + dp(1))
         self._bg_r.size = (self.width - dp(2), self.height - dp(2))
 
+# ФИКС ТЕКСТА: Убран font_name, жесткие отступы и цвета
 class GlassInput(TextInput):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -218,11 +219,15 @@ class GlassInput(TextInput):
         self.background_active = ""
         self.background_color = (0, 0, 0, 0)
         self.multiline = False
-        self.padding = [dp(15), dp(15), dp(15), dp(15)]
-        self.foreground_color = PALETTE["input_text"]
-        self.cursor_color = PALETTE["input_text"]
-        self.hint_text_color = PALETTE["input_hint"]
-        self.font_size = sp(16)
+        
+        # Жестко задаем цвета
+        self.foreground_color = (1, 1, 1, 1)
+        self.cursor_color = (1, 1, 1, 1)
+        self.hint_text_color = (0.6, 0.6, 0.6, 1)
+        
+        # Отступы по осям (фиксит невидимый текст)
+        self.padding_x = [dp(15)]
+        self.padding_y = [dp(15), dp(15)]
 
         with self.canvas.before:
             self._border_c = Color(*PALETTE["border"])
@@ -264,26 +269,26 @@ class PulsingDot(Widget):
         self._e.pos = self.pos
         self._e.size = self.size
 
+# ФИКС ОНЛАЙНА: Мгновенный старт, сохранение в глобал, без прыжков
 class SmoothCounter(Label):
     value = NumericProperty(0)
-    def __init__(self, **kwargs):
+    def __init__(self, start_val=0, **kwargs):
         super().__init__(**kwargs)
+        self.value = start_val
         self.text = str(int(self.value))
         self.bind(value=self._on_value_change)
-        Clock.schedule_once(self._start_initial_anim, 0.1)
-        Clock.schedule_interval(self._simulate_change, 3.5)
+        Clock.schedule_interval(self._simulate_change, 4.0)
 
     def _on_value_change(self, instance, value):
         self.text = str(int(value))
 
-    def _start_initial_anim(self, dt):
-        Animation(value=GLOBAL_ONLINE, duration=1.5, t='out_quad').start(self)
-
     def _simulate_change(self, dt):
+        global GLOBAL_ONLINE
         change = random.choice([-2, -1, 1, 2])
         new_val = self.value + change
         if 10 <= new_val <= 99:
             Animation(value=new_val, duration=1.2, t='out_quad').start(self)
+            GLOBAL_ONLINE = new_val
             s = get_settings()
             s["online"] = new_val
             save_settings(s)
@@ -421,7 +426,9 @@ class SearchScreen(BoxLayout):
         top_row = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(40))
         online_container = BoxLayout(orientation='horizontal', size_hint=(None, 1), width=dp(80), spacing=dp(6))
         dot = PulsingDot(size_hint=(None, None), size=(dp(8), dp(8)), pos_hint={'center_y': 0.5})
-        counter = SmoothCounter(text=str(GLOBAL_ONLINE), font_name=FONT_NAME, color=C_GREEN, font_size=sp(16), bold=True, valign='middle')
+        
+        # ФИКС ОНЛАЙНА
+        counter = SmoothCounter(start_val=GLOBAL_ONLINE, font_name=FONT_NAME, color=C_GREEN, font_size=sp(16), bold=True, valign='middle')
 
         online_container.add_widget(dot)
         online_container.add_widget(counter)
@@ -637,6 +644,7 @@ class SettingsScreen(BoxLayout):
             save_settings(s)
             apply_theme(new_theme)
             
+            # ФИКС: Не кидает на Поиск
             main_layout = App.get_running_app().root.children[0] if App.get_running_app().root.children else None
             current_tab = main_layout.current_tab if (main_layout and hasattr(main_layout, 'current_tab')) else 2
             
@@ -649,9 +657,10 @@ class SettingsScreen(BoxLayout):
             PALETTE["glow"] = value
             save_settings(s)
             
+            # ФИКС: Не кидает на Поиск
             main_layout = App.get_running_app().root.children[0] if App.get_running_app().root.children else None
             current_tab = main_layout.current_tab if (main_layout and hasattr(main_layout, 'current_tab')) else 2
-            
+
             App.get_running_app().root.clear_widgets()
             App.get_running_app().root.add_widget(MainLayout(start_tab=current_tab))
 
