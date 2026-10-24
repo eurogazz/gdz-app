@@ -21,6 +21,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.popup import Popup
+from kivy.uix.image import Image
 from kivy.core.text import LabelBase
 from kivy.core.audio import SoundLoader
 
@@ -30,6 +31,7 @@ Window.softinput_mode = 'below_target'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "gdz.db")
 FONT_NAME = "Roboto"
+LOGO_PATH = os.path.join(BASE_DIR, "logo.png")
 
 MATERIAL_FONT = os.path.join(BASE_DIR, "fonts", "MaterialIcons-Regular.ttf")
 if os.path.exists(MATERIAL_FONT):
@@ -42,7 +44,7 @@ def get_data_file():
     except: pass
     return os.path.join(BASE_DIR, "user_data.json")
 
-# ============ ПАЛИТРА ============
+# ============ СТРОГАЯ ПАЛИТРА ============
 C_BG = (0.0, 0.0, 0.0, 1.0)          # #000000
 C_CARD = (0.07, 0.07, 0.07, 1.0)     # #121212
 C_BORDER = (0.165, 0.165, 0.165, 1.0)# #2A2A2A
@@ -63,7 +65,12 @@ try:
 except:
     CLICK_SOUND = None
 
-GLOBAL_ONLINE = random.randint(10, 99)
+DEFAULT_SETTINGS = {
+    "theme": "dark", 
+    "glow": True, 
+    "online": random.randint(10, 99),
+    "history": []
+}
 
 def get_settings():
     data_file = get_data_file()
@@ -71,14 +78,20 @@ def get_settings():
         try:
             with open(data_file, "r") as f: 
                 data = json.load(f)
-                if isinstance(data, dict): return data
+                if isinstance(data, dict):
+                    for k, v in DEFAULT_SETTINGS.items():
+                        if k not in data:
+                            data[k] = v
+                    return data
         except: pass
-    return {"theme": "dark"}
+    return DEFAULT_SETTINGS.copy()
 
 def save_settings(data):
     try:
         with open(get_data_file(), "w") as f: json.dump(data, f)
     except: pass
+
+GLOBAL_ONLINE = get_settings()["online"]
 
 def find_solution(class_num, subject, number):
     if not os.path.exists(DB_PATH): return "База данных не найдена.", None
@@ -179,13 +192,12 @@ class GlassInput(TextInput):
         self.background_normal = ""
         self.background_active = ""
         self.background_color = (0, 0, 0, 0)
-        self.font_name = FONT_NAME
         self.multiline = False
         self.halign = 'left'
         self.padding_x = [dp(15)] 
-        self.foreground_color = C_TEXT
-        self.cursor_color = C_TEXT
-        self.hint_text_color = C_SUBTEXT
+        self.foreground_color = (1, 1, 1, 1)
+        self.cursor_color = (1, 1, 1, 1)
+        self.hint_text_color = (0.6, 0.6, 0.6, 1)
         
         with self.canvas.before:
             self._border_c = Color(*C_BORDER)
@@ -247,8 +259,10 @@ class SmoothCounter(Label):
         new_val = self.value + change
         if 10 <= new_val <= 99:
             Animation(value=new_val, duration=1.2, t='out_quad').start(self)
+            s = get_settings()
+            s["online"] = new_val
+            save_settings(s)
 
-# КАСТОМНЫЙ SWITCH (Бордовый)
 class CustomSwitch(ButtonBehavior, Widget):
     active = BooleanProperty(False)
     def __init__(self, active=False, **kwargs):
@@ -285,7 +299,7 @@ class CustomSwitch(ButtonBehavior, Widget):
         self.active = not self.active
         if CLICK_SOUND: CLICK_SOUND.play()
 
-
+# ФИКС 1: Исправлена привязка on_release
 class SettingsRow(ButtonBehavior, BoxLayout):
     def __init__(self, icon_code, title, has_switch=False, switch_active=False, on_switch=None, has_arrow=False, text_color=C_TEXT, on_press=None, **kwargs):
         super().__init__(orientation='horizontal', size_hint=(1, None), height=dp(56), padding=[dp(15), 0], **kwargs)
@@ -304,29 +318,30 @@ class SettingsRow(ButtonBehavior, BoxLayout):
             self.add_widget(Label(text=">", font_name=FONT_NAME, font_size=sp(18), color=C_SUBTEXT, size_hint=(None, 1), width=dp(20)))
             
         if on_press:
-            self.bind(on_release=on_press)
+            self.bind(on_release=lambda *args: on_press())
 
 # ============ ЭКРАНЫ ============
 
-class SplashScreen(BoxLayout):
+class SplashScreen(FloatLayout):
     def __init__(self, **kwargs):
-        super().__init__(orientation="vertical", **kwargs)
+        super().__init__(**kwargs)
         Window.clearcolor = C_BG
         
-        self.add_widget(Widget())
+        self.logo = Image(source=LOGO_PATH, size_hint=(None, None), size=(dp(230), dp(230)), 
+                          pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0)
+        self.add_widget(self.logo)
         
-        logo_layout = FloatLayout(size_hint=(1, None), height=dp(80))
-        logo_layout.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36), color=(0,0,0,0), outline_width=dp(14), outline_color=(*C_ACCENT_BORDER[:3], 0.1), halign="center", valign="middle"))
-        logo_layout.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36), color=(0,0,0,0), outline_width=dp(9), outline_color=(*C_ACCENT_BORDER[:3], 0.2), halign="center", valign="middle"))
-        logo_layout.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36), color=(0,0,0,0), outline_width=dp(5), outline_color=(*C_ACCENT_BORDER[:3], 0.4), halign="center", valign="middle"))
-        logo_layout.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36), color=(0,0,0,0), outline_width=dp(2), outline_color=(*C_ACCENT_BORDER[:3], 0.8), halign="center", valign="middle"))
-        logo_layout.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36), color=C_TEXT, halign="center", valign="middle"))
+        anim = Animation(opacity=1, duration=1.0) + Animation(size=(dp(250), dp(250)), duration=1.0, t='out_quad')
+        anim.start(self.logo)
         
-        self.add_widget(logo_layout)
-        self.add_widget(Widget())
-        Clock.schedule_once(self.next_screen, 1.5)
+        Clock.schedule_once(self.fade_out, 2.5)
 
-    def next_screen(self, dt):
+    def fade_out(self, dt):
+        anim = Animation(opacity=0, duration=0.5)
+        anim.bind(on_complete=self.next_screen)
+        anim.start(self.logo)
+
+    def next_screen(self, *args):
         App.get_running_app().root.clear_widgets()
         App.get_running_app().root.add_widget(MainLayout())
 
@@ -377,10 +392,9 @@ class SearchScreen(BoxLayout):
         self.sel_subject = None
         
         top_row = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(40))
-        online_container = BoxLayout(orientation='horizontal', size_hint=(None, None), size=(dp(80), dp(30)), spacing=dp(6), pos_hint={'center_y': 0.5})
-        
+        online_container = BoxLayout(orientation='horizontal', size_hint=(None, 1), width=dp(80), spacing=dp(6))
         dot = PulsingDot(size_hint=(None, None), size=(dp(8), dp(8)), pos_hint={'center_y': 0.5})
-        counter = SmoothCounter(text="0", font_name=FONT_NAME, color=C_GREEN, font_size=sp(16), bold=True, valign='middle')
+        counter = SmoothCounter(text=str(GLOBAL_ONLINE), font_name=FONT_NAME, color=C_GREEN, font_size=sp(16), bold=True, valign='middle')
         
         online_container.add_widget(dot)
         online_container.add_widget(counter)
@@ -420,6 +434,10 @@ class SearchScreen(BoxLayout):
         btn_find.bind(on_press=self.do_search)
         layout.add_widget(btn_find)
         
+        self.history_layout = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(40), spacing=dp(5))
+        layout.add_widget(self.history_layout)
+        self.update_history_ui()
+
         self.result_card = CustomCard(orientation="vertical", padding=dp(15), size_hint=(1, None), height=dp(1))
         self.res_lbl = Label(text="", font_name=FONT_NAME, color=C_TEXT, size_hint_y=None, halign="left", valign="top")
         self.res_lbl.bind(width=lambda inst, w: setattr(inst, 'text_size', (w, None)))
@@ -440,12 +458,37 @@ class SearchScreen(BoxLayout):
         for b in self.subj_buttons: b.is_active = False
         btn.is_active = True
 
+    def update_history_ui(self):
+        self.history_layout.clear_widgets()
+        s = get_settings()
+        history = s.get("history", [])
+        if not history: return
+        
+        for q in history[-3:]:
+            btn = BorderedButton(text=q, size_hint=(1, 1), font_size=sp(12))
+            btn.bind(on_press=lambda inst, val=q: self.do_quick_search(val))
+            self.history_layout.add_widget(btn)
+
+    def do_quick_search(self, val):
+        self.num_input.text = val
+        self.do_search()
+
     def do_search(self, *a):
-        if not self.sel_class or not self.sel_subject or not self.num_input.text.strip():
+        num = self.num_input.text.strip()
+        if not self.sel_class or not self.sel_subject or not num:
             self.res_lbl.text = "Выбери класс, предмет и введи номер."
             self.result_card.height = dp(80)
             return
-        sol, _ = find_solution(self.sel_class, self.sel_subject, self.num_input.text.strip())
+            
+        s = get_settings()
+        history = s.get("history", [])
+        if num in history: history.remove(num)
+        history.append(num)
+        s["history"] = history[-10:]
+        save_settings(s)
+        self.update_history_ui()
+        
+        sol, _ = find_solution(self.sel_class, self.sel_subject, num)
         self.res_lbl.text = sol
         self.result_card.height = self.res_lbl.height + dp(30)
 
@@ -461,7 +504,6 @@ class CalculatorScreen(BoxLayout):
         disp_card.add_widget(self.display)
         self.add_widget(disp_card)
         
-        # Сетка из BoxLayout'ов для идеального контроля колонок
         grid = GridLayout(cols=1, spacing=dp(8), size_hint=(1, 1))
         
         def create_row(buttons_data):
@@ -481,11 +523,8 @@ class CalculatorScreen(BoxLayout):
                 elif text == '=':
                     btn.bind(on_press=self.calculate)
                     
-                if text == '0':
-                    btn.size_hint_x = 2 # Занимает 2 колонки
-                else:
-                    btn.size_hint_x = 1 # Занимает 1 колонку
-                    
+                if text == '0': btn.size_hint_x = 2 
+                else: btn.size_hint_x = 1 
                 row.add_widget(btn)
             grid.add_widget(row)
 
@@ -493,27 +532,22 @@ class CalculatorScreen(BoxLayout):
         create_row([('7', 'num'), ('8', 'num'), ('9', 'num'), ('*', 'accent')])
         create_row([('4', 'num'), ('5', 'num'), ('6', 'num'), ('-', 'accent')])
         create_row([('1', 'num'), ('2', 'num'), ('3', 'num'), ('+', 'accent')])
-        create_row([('0', 'num'), ('.', 'num'), ('=', 'find')]) # Идеальный низ (0 + . + =)
+        create_row([('0', 'num'), ('.', 'num'), ('=', 'find')])
             
         self.add_widget(grid)
 
     def on_press(self, char):
-        if char == 'C':
-            self.expression = ""
-        elif char == '<-':
-            self.expression = self.expression[:-1]
-        else:
-            self.expression += char
+        if char == 'C': self.expression = ""
+        elif char == '<-': self.expression = self.expression[:-1]
+        else: self.expression += char
         self.display.text = self.expression
 
     def calculate(self, *args):
         try:
-            if not self.expression:
-                return
+            if not self.expression: return
             safe_expr = "".join([c for c in self.expression if c in "0123456789+-*/.%"])
             result = eval(safe_expr)
-            if isinstance(result, float) and result.is_integer():
-                result = int(result)
+            if isinstance(result, float) and result.is_integer(): result = int(result)
             self.expression = str(result)
             self.display.text = self.expression
         except Exception:
@@ -529,22 +563,61 @@ class SettingsScreen(BoxLayout):
         layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(10))
         layout.bind(minimum_height=layout.setter('height'))
 
+        # ФИКС 2 и 4: Попапы и блокировка чата
+        def show_popup(title, content_text, is_chat=False):
+            content = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+            if is_chat:
+                inp = GlassInput(hint_text="Введите сообщение...", size_hint=(1, None), height=dp(50))
+                btn_send = BorderedButton(text="Отправить", size_hint=(1, None), height=dp(45))
+                
+                def send_msg(instance):
+                    inp.text = "Ожидайте, скоро с вами свяжутся"
+                    inp.readonly = True # Блокируем ввод
+                    btn_send.disabled = True # Блокируем кнопку
+                    btn_send.text = "Отправлено"
+                    
+                btn_send.bind(on_press=send_msg)
+                content.add_widget(inp)
+                content.add_widget(btn_send)
+            else:
+                scroll_pop = ScrollView()
+                lbl = Label(text=content_text, font_name=FONT_NAME, color=C_TEXT, size_hint_y=None, halign="left", valign="top", markup=True)
+                lbl.bind(width=lambda inst, w: setattr(inst, 'text_size', (w, None)))
+                lbl.bind(texture_size=lbl.setter('size'))
+                scroll_pop.add_widget(lbl)
+                content.add_widget(scroll_pop)
+            
+            btn_close = BorderedButton(text="Закрыть", size_hint=(1, None), height=dp(45))
+            content.add_widget(btn_close)
+            
+            popup = Popup(title=title, title_font=FONT_NAME, title_color=C_TEXT, content=content, size_hint=(0.9, 0.7), background_color=C_CARD, separator_color=C_ACCENT)
+            btn_close.bind(on_press=popup.dismiss)
+            popup.open()
+
         # КАСТОМИЗАЦИЯ
         layout.add_widget(Label(text="КАСТОМИЗАЦИЯ", font_name=FONT_NAME, color=C_SUBTEXT, font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
         
         card1 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card1.bind(minimum_height=card1.setter('height'))
         
+        # ФИКС 3: Тема сохраняется, но вылезает попап
         def toggle_theme(instance, value):
-            save_settings({"theme": "dark" if value else "light"})
-            App.get_running_app().root.clear_widgets()
-            App.get_running_app().root.add_widget(MainLayout())
+            s = get_settings()
+            s["theme"] = "dark" if value else "light"
+            save_settings(s)
+            if not value:
+                show_popup("Внимание", "Светлая тема находится в разработке")
+            
+        def toggle_glow(instance, value):
+            s = get_settings()
+            s["glow"] = value
+            save_settings(s)
         
         card1.add_widget(SettingsRow(icon_code="\ue51c", title="Темная тема", has_switch=True, switch_active=(settings.get("theme", "dark") == "dark"), on_switch=toggle_theme))
         card1.add_widget(Divider())
-        card1.add_widget(SettingsRow(icon_code="\ue40a", title="Цвет оформления", has_arrow=True, on_press=lambda *_: print("Color")))
+        card1.add_widget(SettingsRow(icon_code="\ue40a", title="Цвет оформления", has_arrow=True, on_press=lambda: show_popup("Цвет оформления", "В разработке")))
         card1.add_widget(Divider())
-        card1.add_widget(SettingsRow(icon_code="\ue838", title="Свечение", has_arrow=True, on_press=lambda *_: print("Glow")))
+        card1.add_widget(SettingsRow(icon_code="\ue838", title="Свечение", has_switch=True, switch_active=settings.get("glow", True), on_switch=toggle_glow))
         layout.add_widget(card1)
 
         # ПОДДЕРЖКА
@@ -552,9 +625,9 @@ class SettingsScreen(BoxLayout):
         
         card2 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card2.bind(minimum_height=card2.setter('height'))
-        card2.add_widget(SettingsRow(icon_code="\ue0b7", title="Чат поддержки", has_arrow=True, on_press=lambda *_: webbrowser.open(TG_LINK)))
+        card2.add_widget(SettingsRow(icon_code="\ue0b7", title="Чат поддержки", has_arrow=True, on_press=lambda: show_popup("Чат поддержки", "", is_chat=True)))
         card2.add_widget(Divider())
-        card2.add_widget(SettingsRow(icon_code="\ue8fd", title="FAQ", has_arrow=True, on_press=lambda *_: print("FAQ")))
+        card2.add_widget(SettingsRow(icon_code="\ue8fd", title="FAQ", has_arrow=True, on_press=lambda: show_popup("FAQ", "[b]Как искать?[/b]\nВыбери класс, предмет и введи номер.\n\n[b]Почему нет интернета?[/b]\nПриложение работает офлайн.\n\n[b]Как связаться?[/b]\nЧерез Telegram-канал.")))
         layout.add_widget(card2)
 
         # ИНФОРМАЦИЯ
@@ -562,24 +635,10 @@ class SettingsScreen(BoxLayout):
         
         card3 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card3.bind(minimum_height=card3.setter('height'))
-        card3.add_widget(SettingsRow(icon_code="\ue88e", title="О проекте", has_arrow=True, on_press=lambda *_: print("About")))
+        card3.add_widget(SettingsRow(icon_code="\ue88e", title="О проекте", has_arrow=True, on_press=lambda: show_popup("О проекте", "Offline GDZ — это ваш надежный оффлайн-помощник в учебе. Мы создали это приложение, чтобы каждый ученик мог быстро найти правильное решение домашнего задания без необходимости подключаться к интернету.")))
         
         def show_changelog(*args):
-            content = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
-            scroll_pop = ScrollView()
-            cl_text = "[b]v1.6V (Текущая)[/b]\n- Строгий цвет, калькулятор, Material Icons\n\n[b]v1.5[/b]\n- Неон, спидометр онлайна\n\n[b]v1.0[/b]\n- Первый релиз"
-            lbl = Label(text=cl_text, font_name=FONT_NAME, color=C_TEXT, size_hint_y=None, halign="left", valign="top", markup=True)
-            lbl.bind(width=lambda inst, w: setattr(inst, 'text_size', (w, None)))
-            lbl.bind(texture_size=lbl.setter('size'))
-            scroll_pop.add_widget(lbl)
-            content.add_widget(scroll_pop)
-            
-            btn_close = BorderedButton(text="Закрыть", size_hint=(1, None), height=dp(45))
-            content.add_widget(btn_close)
-            
-            popup = Popup(title="Ченджлог", title_font=FONT_NAME, title_color=C_TEXT, content=content, size_hint=(0.9, 0.8), background_color=C_CARD, separator_color=C_ACCENT)
-            btn_close.bind(on_press=popup.dismiss)
-            popup.open()
+            show_popup("Ченджлог", "[b]v1.6V[/b]\n- Строгий дизайн, калькулятор, JSON история\n\n[b]v1.0[/b]\n- Первый релиз")
 
         card3.add_widget(Divider())
         card3.add_widget(SettingsRow(icon_code="\ue8e5", title="Ченджлог", has_arrow=True, on_press=show_changelog))
@@ -591,11 +650,14 @@ class SettingsScreen(BoxLayout):
         card4 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card4.bind(minimum_height=card4.setter('height'))
         
+        # ФИКС 5: Перерисовка после очистки
         def clear_hist(*args):
             s = get_settings()
             s["history"] = []
             save_settings(s)
             if CLICK_SOUND: CLICK_SOUND.play()
+            App.get_running_app().root.clear_widgets()
+            App.get_running_app().root.add_widget(MainLayout())
             
         card4.add_widget(SettingsRow(icon_code="\ue872", title="Очистить историю", has_arrow=True, text_color=C_RED, on_press=clear_hist))
         layout.add_widget(card4)
@@ -607,7 +669,7 @@ class SettingsScreen(BoxLayout):
         card5.bind(minimum_height=card5.setter('height'))
         card5.add_widget(SettingsRow(icon_code="\ue32c", title="Версия 1.6V", has_arrow=False))
         card5.add_widget(Divider())
-        card5.add_widget(SettingsRow(icon_code="\ue163", title="Telegram-канал", has_arrow=True, on_press=lambda *_: webbrowser.open(TG_LINK)))
+        card5.add_widget(SettingsRow(icon_code="\ue163", title="Telegram-канал", has_arrow=True, on_press=lambda: webbrowser.open(TG_LINK)))
         layout.add_widget(card5)
         
         layout.add_widget(Widget(size_hint=(1, None), height=dp(20)))
