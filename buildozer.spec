@@ -6,18 +6,22 @@ package.domain = org.beamforge
 
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,db,webp,ttf,wav
-source.include_patterns = gdz.db,covers/*.webp,fonts/*.ttf,*.wav
 source.exclude_dirs = bin,.buildozer,__pycache__
 
-version = 0.1
+version = 1.6
 requirements = python3,kivy
 
 orientation = portrait
 fullscreen = 0
 
+# Иконка и заставка
+icon.filename = %(source.dir)s/logo.png
+presplash.filename = %(source.dir)s/logo.png
+android.presplash_color = 000000
+
+# Настройки Android
 android.api = 33
 android.minapi = 21
-# android.ndk = 25b
 android.archs = arm64-v8a
 android.permissions = INTERNET
 android.allow_backup = True
