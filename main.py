@@ -27,7 +27,6 @@ from kivy.core.audio import SoundLoader
 
 Window.softinput_mode = 'below_target'
 
-# ============ ПУТИ И ШРИФТЫ ============
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "gdz.db")
 FONT_NAME = "Roboto"
@@ -44,18 +43,41 @@ def get_data_file():
     except: pass
     return os.path.join(BASE_DIR, "user_data.json")
 
-# ============ СТРОГАЯ ПАЛИТРА ============
-C_BG = (0.0, 0.0, 0.0, 1.0)          # #000000
-C_CARD = (0.07, 0.07, 0.07, 1.0)     # #121212
-C_BORDER = (0.165, 0.165, 0.165, 1.0)# #2A2A2A
-C_ACCENT = (0.24, 0.03, 0.03, 1.0)   # #3D0808
-C_ACCENT_BORDER = (0.48, 0.10, 0.10, 1.0) # #7A1A1A
-C_TEXT = (1.0, 1.0, 1.0, 1.0)        # #FFFFFF
-C_SUBTEXT = (0.6, 0.6, 0.6, 1.0)
-C_RED = (1.0, 0.26, 0.26, 1.0)       # #FF4444
+PALETTE = {
+    "bg": (0.0, 0.0, 0.0, 1.0),
+    "card": (0.07, 0.07, 0.07, 1.0),
+    "border": (0.165, 0.165, 0.165, 1.0),
+    "accent": (0.24, 0.03, 0.03, 1.0),
+    "accent_border": (0.48, 0.10, 0.10, 1.0),
+    "text": (1.0, 1.0, 1.0, 1.0),
+    "subtext": (0.6, 0.6, 0.6, 1.0),
+    "input_text": (1.0, 1.0, 1.0, 1.0),
+    "input_hint": (0.6, 0.6, 0.6, 1.0),
+    "glow": True,
+}
+
+C_RED = (1.0, 0.26, 0.26, 1.0)
 C_GREEN = (0.2, 1.0, 0.4, 1.0)
 
-# ============ НАСТРОЙКИ ============
+def apply_theme(theme_name):
+    if theme_name == "light":
+        PALETTE["bg"] = (1.0, 1.0, 1.0, 1.0)
+        PALETTE["card"] = (0.95, 0.95, 0.95, 1.0)
+        PALETTE["border"] = (0.75, 0.75, 0.75, 1.0)
+        PALETTE["text"] = (0.0, 0.0, 0.0, 1.0)
+        PALETTE["subtext"] = (0.4, 0.4, 0.4, 1.0)
+        PALETTE["input_text"] = (0.0, 0.0, 0.0, 1.0)
+        PALETTE["input_hint"] = (0.5, 0.5, 0.5, 1.0)
+    else:
+        PALETTE["bg"] = (0.0, 0.0, 0.0, 1.0)
+        PALETTE["card"] = (0.07, 0.07, 0.07, 1.0)
+        PALETTE["border"] = (0.165, 0.165, 0.165, 1.0)
+        PALETTE["text"] = (1.0, 1.0, 1.0, 1.0)
+        PALETTE["subtext"] = (0.6, 0.6, 0.6, 1.0)
+        PALETTE["input_text"] = (1.0, 1.0, 1.0, 1.0)
+        PALETTE["input_hint"] = (0.6, 0.6, 0.6, 1.0)
+    Window.clearcolor = PALETTE["bg"]
+
 TG_LINK = "https://t.me/BeamForge"
 CLASSES = [5, 6, 7, 8, 9, 10, 11]
 SUBJECTS = ["Математика", "Алгебра", "Геометрия", "Русский", "Английский", "Физика", "Химия"]
@@ -66,8 +88,8 @@ except:
     CLICK_SOUND = None
 
 DEFAULT_SETTINGS = {
-    "theme": "dark", 
-    "glow": True, 
+    "theme": "dark",
+    "glow": True,
     "online": random.randint(10, 99),
     "history": []
 }
@@ -76,7 +98,7 @@ def get_settings():
     data_file = get_data_file()
     if os.path.exists(data_file):
         try:
-            with open(data_file, "r") as f: 
+            with open(data_file, "r") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
                     for k, v in DEFAULT_SETTINGS.items():
@@ -112,7 +134,7 @@ class Divider(Widget):
     def __init__(self, **kwargs):
         super().__init__(size_hint=(1, None), height=dp(1), **kwargs)
         with self.canvas:
-            Color(*C_BORDER)
+            Color(*PALETTE["border"])
             self.rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self.update_rect, size=self.update_rect)
     def update_rect(self, *args):
@@ -123,12 +145,12 @@ class CustomCard(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         with self.canvas.before:
-            self._border_c = Color(*C_BORDER)
+            self._border_c = Color(*PALETTE["border"])
             self._border_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(12)])
-            self._bg_c = Color(*C_CARD)
+            self._bg_c = Color(*PALETTE["card"])
             self._bg_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(12)])
         self.bind(pos=self._update, size=self._update)
-        
+
     def _update(self, *a):
         self._border_r.pos = self.pos
         self._border_r.size = self.size
@@ -138,26 +160,26 @@ class CustomCard(BoxLayout):
 class BorderedButton(Button):
     is_active = BooleanProperty(False)
     is_find = BooleanProperty(False)
-    radius = NumericProperty(dp(12)) 
-    
+    radius = NumericProperty(dp(12))
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.background_normal = ""
         self.background_down = ""
         self.background_color = (0, 0, 0, 0)
         self.font_name = FONT_NAME
-        self.color = C_TEXT
+        self.color = PALETTE["text"]
         self.halign = 'center'
         self.valign = 'middle'
-        
+
         with self.canvas.before:
-            self._glow_c = Color(0,0,0,0)
+            self._glow_c = Color(0, 0, 0, 0)
             self._glow_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius + dp(4)])
-            self._border_c = Color(*C_BORDER)
+            self._border_c = Color(*PALETTE["border"])
             self._border_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
-            self._bg_c = Color(*C_CARD)
+            self._bg_c = Color(*PALETTE["card"])
             self._bg_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
-            
+
         self.bind(pos=self._update, size=self._update, is_active=self._update_colors, is_find=self._update_colors, radius=self._update_radius)
         self._update_colors()
 
@@ -169,16 +191,19 @@ class BorderedButton(Button):
 
     def _update_colors(self, *a):
         if self.is_find or self.is_active:
-            self._bg_c.rgba = C_ACCENT
-            self._border_c.rgba = C_ACCENT_BORDER
-            if self.is_find: self._glow_c.rgba = (*C_ACCENT[:3], 0.4)
+            self._bg_c.rgba = PALETTE["accent"]
+            self._border_c.rgba = PALETTE["accent_border"]
+            if self.is_find and PALETTE["glow"]:
+                self._glow_c.rgba = (*PALETTE["accent"][:3], 0.4)
+            else:
+                self._glow_c.rgba = (0, 0, 0, 0)
         else:
-            self._bg_c.rgba = C_CARD
-            self._border_c.rgba = C_BORDER
-            self._glow_c.rgba = (0,0,0,0)
+            self._bg_c.rgba = PALETTE["card"]
+            self._border_c.rgba = PALETTE["border"]
+            self._glow_c.rgba = (0, 0, 0, 0)
 
     def _update(self, *a):
-        if self.is_find:
+        if self.is_find and PALETTE["glow"]:
             self._glow_r.pos = (self.x - dp(4), self.y - dp(4))
             self._glow_r.size = (self.width + dp(8), self.height + dp(8))
         self._border_r.pos = self.pos
@@ -193,19 +218,19 @@ class GlassInput(TextInput):
         self.background_active = ""
         self.background_color = (0, 0, 0, 0)
         self.multiline = False
-        self.halign = 'left'
-        self.padding_x = [dp(15)] 
-        self.foreground_color = (1, 1, 1, 1)
-        self.cursor_color = (1, 1, 1, 1)
-        self.hint_text_color = (0.6, 0.6, 0.6, 1)
-        
+        self.padding = [dp(15), dp(15), dp(15), dp(15)]
+        self.foreground_color = PALETTE["input_text"]
+        self.cursor_color = PALETTE["input_text"]
+        self.hint_text_color = PALETTE["input_hint"]
+        self.font_size = sp(16)
+
         with self.canvas.before:
-            self._border_c = Color(*C_BORDER)
+            self._border_c = Color(*PALETTE["border"])
             self._border_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(12)])
-            self._bg_c = Color(*C_CARD)
+            self._bg_c = Color(*PALETTE["card"])
             self._bg_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(12)])
         self.bind(pos=self._update, size=self._update)
-        
+
     def _update(self, *a):
         self._border_r.pos = self.pos
         self._border_r.size = self.size
@@ -250,7 +275,7 @@ class SmoothCounter(Label):
 
     def _on_value_change(self, instance, value):
         self.text = str(int(value))
-        
+
     def _start_initial_anim(self, dt):
         Animation(value=GLOBAL_ONLINE, duration=1.5, t='out_quad').start(self)
 
@@ -270,13 +295,13 @@ class CustomSwitch(ButtonBehavior, Widget):
         self.size_hint = (None, None)
         self.size = (dp(45), dp(25))
         self.active = active
-        
+
         with self.canvas:
-            self.color_bg = Color(*(C_ACCENT if self.active else C_BORDER))
+            self.color_bg = Color(*(PALETTE["accent"] if self.active else PALETTE["border"]))
             self.bg_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(12.5)])
-            self.color_knob = Color(*C_TEXT)
+            self.color_knob = Color(*PALETTE["text"])
             self.knob = Ellipse(pos=(self.x + dp(2), self.y + dp(2)), size=(dp(21), dp(21)))
-            
+
         self.bind(pos=self.update_canvas, size=self.update_canvas, active=self.update_colors)
         self.update_canvas()
 
@@ -290,33 +315,35 @@ class CustomSwitch(ButtonBehavior, Widget):
 
     def update_colors(self, *args):
         if self.active:
-            self.color_bg.rgba = C_ACCENT
+            self.color_bg.rgba = PALETTE["accent"]
         else:
-            self.color_bg.rgba = C_BORDER
+            self.color_bg.rgba = PALETTE["border"]
         self.update_canvas()
 
     def on_release(self):
         self.active = not self.active
         if CLICK_SOUND: CLICK_SOUND.play()
 
-# ФИКС 1: Исправлена привязка on_release
 class SettingsRow(ButtonBehavior, BoxLayout):
-    def __init__(self, icon_code, title, has_switch=False, switch_active=False, on_switch=None, has_arrow=False, text_color=C_TEXT, on_press=None, **kwargs):
+    def __init__(self, icon_code, title, has_switch=False, switch_active=False, on_switch=None, has_arrow=False, text_color=None, on_press=None, **kwargs):
         super().__init__(orientation='horizontal', size_hint=(1, None), height=dp(56), padding=[dp(15), 0], **kwargs)
-        
-        self.add_widget(Label(text=icon_code, font_name="MaterialIcons", font_size=sp(20), color=C_SUBTEXT, size_hint=(None, 1), width=dp(30)))
-        
+
+        if text_color is None:
+            text_color = PALETTE["text"]
+
+        self.add_widget(Label(text=icon_code, font_name="MaterialIcons", font_size=sp(20), color=PALETTE["subtext"], size_hint=(None, 1), width=dp(30)))
+
         self.title_lbl = Label(text=title, font_name=FONT_NAME, font_size=sp(15), color=text_color, halign='left', valign='middle')
         self.title_lbl.bind(size=self.title_lbl.setter('text_size'))
         self.add_widget(self.title_lbl)
-        
+
         if has_switch:
             sw = CustomSwitch(active=switch_active, pos_hint={'center_y': .5})
             if on_switch: sw.bind(active=on_switch)
             self.add_widget(sw)
         elif has_arrow:
-            self.add_widget(Label(text=">", font_name=FONT_NAME, font_size=sp(18), color=C_SUBTEXT, size_hint=(None, 1), width=dp(20)))
-            
+            self.add_widget(Label(text=">", font_name=FONT_NAME, font_size=sp(18), color=PALETTE["subtext"], size_hint=(None, 1), width=dp(20)))
+
         if on_press:
             self.bind(on_release=lambda *args: on_press())
 
@@ -325,15 +352,15 @@ class SettingsRow(ButtonBehavior, BoxLayout):
 class SplashScreen(FloatLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        Window.clearcolor = C_BG
-        
-        self.logo = Image(source=LOGO_PATH, size_hint=(None, None), size=(dp(230), dp(230)), 
+        Window.clearcolor = PALETTE["bg"]
+
+        self.logo = Image(source=LOGO_PATH, size_hint=(None, None), size=(dp(230), dp(230)),
                           pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0)
         self.add_widget(self.logo)
-        
+
         anim = Animation(opacity=1, duration=1.0) + Animation(size=(dp(250), dp(250)), duration=1.0, t='out_quad')
         anim.start(self.logo)
-        
+
         Clock.schedule_once(self.fade_out, 2.5)
 
     def fade_out(self, dt):
@@ -346,26 +373,26 @@ class SplashScreen(FloatLayout):
         App.get_running_app().root.add_widget(MainLayout())
 
 class MainLayout(BoxLayout):
-    def __init__(self, **kwargs):
+    def __init__(self, start_tab=0, **kwargs):
         super().__init__(orientation="vertical", **kwargs)
-        Window.clearcolor = C_BG
-        
+        Window.clearcolor = PALETTE["bg"]
+
         self.content = BoxLayout(orientation="vertical")
         self.add_widget(self.content)
-        
+
         self.nav_bar = BoxLayout(size_hint=(1, None), height=dp(60), spacing=dp(5), padding=[dp(5), dp(5), dp(5), dp(5)])
-        
+
         self.btn_search = self._make_nav_btn("Поиск", 0)
         self.btn_calc = self._make_nav_btn("Калькулятор", 1)
         self.btn_settings = self._make_nav_btn("Настройки", 2)
-        
+
         self.nav_bar.add_widget(self.btn_search)
         self.nav_bar.add_widget(self.btn_calc)
         self.nav_bar.add_widget(self.btn_settings)
         self.add_widget(self.nav_bar)
-        
+
         self.current_tab = -1
-        self.switch_tab(0)
+        self.switch_tab(start_tab)
 
     def _make_nav_btn(self, text, index):
         btn = BorderedButton(text=text, bold=True, radius=dp(8), font_size=sp(13))
@@ -375,11 +402,11 @@ class MainLayout(BoxLayout):
     def switch_tab(self, index):
         if self.current_tab == index: return
         self.current_tab = index
-        
+
         self.btn_search.is_active = (index == 0)
         self.btn_calc.is_active = (index == 1)
         self.btn_settings.is_active = (index == 2)
-            
+
         self.content.clear_widgets()
         if index == 0: self.content.add_widget(SearchScreen())
         elif index == 1: self.content.add_widget(CalculatorScreen())
@@ -390,24 +417,24 @@ class SearchScreen(BoxLayout):
         super().__init__(orientation="vertical", padding=[dp(15), dp(20), dp(15), dp(10)], spacing=dp(15), **kwargs)
         self.sel_class = None
         self.sel_subject = None
-        
+
         top_row = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(40))
         online_container = BoxLayout(orientation='horizontal', size_hint=(None, 1), width=dp(80), spacing=dp(6))
         dot = PulsingDot(size_hint=(None, None), size=(dp(8), dp(8)), pos_hint={'center_y': 0.5})
         counter = SmoothCounter(text=str(GLOBAL_ONLINE), font_name=FONT_NAME, color=C_GREEN, font_size=sp(16), bold=True, valign='middle')
-        
+
         online_container.add_widget(dot)
         online_container.add_widget(counter)
-        
-        top_row.add_widget(Widget()) 
+
+        top_row.add_widget(Widget())
         top_row.add_widget(online_container)
         self.add_widget(top_row)
-        
+
         scroll = ScrollView()
         layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(15))
         layout.bind(minimum_height=layout.setter('height'))
-        
-        layout.add_widget(Label(text="Класс", font_name=FONT_NAME, color=C_SUBTEXT, size_hint=(1, None), height=dp(20), bold=True, halign="left"))
+
+        layout.add_widget(Label(text="Класс", font_name=FONT_NAME, color=PALETTE["subtext"], size_hint=(1, None), height=dp(20), bold=True, halign="left"))
         grid_cls = GridLayout(cols=7, size_hint=(1, None), height=dp(45), spacing=dp(5))
         self.cls_buttons = []
         for cls in CLASSES:
@@ -416,8 +443,8 @@ class SearchScreen(BoxLayout):
             grid_cls.add_widget(b)
             self.cls_buttons.append(b)
         layout.add_widget(grid_cls)
-        
-        layout.add_widget(Label(text="Предмет", font_name=FONT_NAME, color=C_SUBTEXT, size_hint=(1, None), height=dp(20), bold=True, halign="left"))
+
+        layout.add_widget(Label(text="Предмет", font_name=FONT_NAME, color=PALETTE["subtext"], size_hint=(1, None), height=dp(20), bold=True, halign="left"))
         grid_subj = GridLayout(cols=3, size_hint=(1, None), height=dp(130), spacing=dp(5))
         self.subj_buttons = []
         for s in SUBJECTS:
@@ -426,25 +453,25 @@ class SearchScreen(BoxLayout):
             grid_subj.add_widget(b)
             self.subj_buttons.append(b)
         layout.add_widget(grid_subj)
-        
-        self.num_input = GlassInput(hint_text="Номер задачи", size_hint=(1, None), height=dp(55), font_size=sp(16))
+
+        self.num_input = GlassInput(hint_text="Номер задачи", size_hint=(1, None), height=dp(55))
         layout.add_widget(self.num_input)
-        
+
         btn_find = BorderedButton(text="НАЙТИ", is_find=True, bold=True, size_hint=(1, None), height=dp(55), font_size=sp(16))
         btn_find.bind(on_press=self.do_search)
         layout.add_widget(btn_find)
-        
+
         self.history_layout = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(40), spacing=dp(5))
         layout.add_widget(self.history_layout)
         self.update_history_ui()
 
         self.result_card = CustomCard(orientation="vertical", padding=dp(15), size_hint=(1, None), height=dp(1))
-        self.res_lbl = Label(text="", font_name=FONT_NAME, color=C_TEXT, size_hint_y=None, halign="left", valign="top")
+        self.res_lbl = Label(text="", font_name=FONT_NAME, color=PALETTE["text"], size_hint_y=None, halign="left", valign="top")
         self.res_lbl.bind(width=lambda inst, w: setattr(inst, 'text_size', (w, None)))
         self.res_lbl.bind(texture_size=self.res_lbl.setter('size'))
         self.result_card.add_widget(self.res_lbl)
         layout.add_widget(self.result_card)
-        
+
         scroll.add_widget(layout)
         self.add_widget(scroll)
 
@@ -463,7 +490,6 @@ class SearchScreen(BoxLayout):
         s = get_settings()
         history = s.get("history", [])
         if not history: return
-        
         for q in history[-3:]:
             btn = BorderedButton(text=q, size_hint=(1, 1), font_size=sp(12))
             btn.bind(on_press=lambda inst, val=q: self.do_quick_search(val))
@@ -477,9 +503,9 @@ class SearchScreen(BoxLayout):
         num = self.num_input.text.strip()
         if not self.sel_class or not self.sel_subject or not num:
             self.res_lbl.text = "Выбери класс, предмет и введи номер."
-            self.result_card.height = dp(80)
+            self.result_card.height = self.res_lbl.texture_size[1] + dp(30)
             return
-            
+
         s = get_settings()
         history = s.get("history", [])
         if num in history: history.remove(num)
@@ -487,44 +513,49 @@ class SearchScreen(BoxLayout):
         s["history"] = history[-10:]
         save_settings(s)
         self.update_history_ui()
-        
+
         sol, _ = find_solution(self.sel_class, self.sel_subject, num)
         self.res_lbl.text = sol
-        self.result_card.height = self.res_lbl.height + dp(30)
+        self.result_card.height = self.res_lbl.texture_size[1] + dp(30)
 
 class CalculatorScreen(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation="vertical", padding=[dp(15), dp(20), dp(15), dp(10)], spacing=dp(10), **kwargs)
         self.expression = ""
-        
-        self.display = Label(text="", font_name=FONT_NAME, font_size=sp(42), color=C_TEXT, halign="right", valign="middle")
+
+        self.display = Label(text="", font_name=FONT_NAME, font_size=sp(42), color=PALETTE["text"], halign="right", valign="middle")
         self.display.bind(size=self.display.setter('text_size'))
-        
+
         disp_card = CustomCard(padding=dp(15), size_hint=(1, None), height=dp(80))
         disp_card.add_widget(self.display)
         self.add_widget(disp_card)
-        
+
         grid = GridLayout(cols=1, spacing=dp(8), size_hint=(1, 1))
-        
+
         def create_row(buttons_data):
             row = BoxLayout(orientation='horizontal', spacing=dp(8), size_hint=(1, 1))
             for text, btype in buttons_data:
-                btn = BorderedButton(text=text, font_size=sp(22), bold=True)
+                btn = BorderedButton(text=text, font_size=sp(20), bold=True)
+                btn.halign = 'center'
+                btn.valign = 'middle'
+                btn.padding = [dp(0), dp(0), dp(0), dp(0)]
+                btn.bind(size=lambda inst, val: setattr(inst, 'text_size', (val[0], val[1])))
+
                 if btype == 'accent':
                     btn.is_active = True
-                    btn.text_color = C_TEXT
+                    btn.text_color = PALETTE["text"]
                 elif btype == 'find':
                     btn.is_find = True
                 elif btype == 'grey':
-                    btn.color = C_SUBTEXT
-                
+                    btn.color = PALETTE["subtext"]
+
                 if text not in ['=', '']:
                     btn.bind(on_press=lambda inst, t=text: self.on_press(t))
                 elif text == '=':
                     btn.bind(on_press=self.calculate)
-                    
-                if text == '0': btn.size_hint_x = 2 
-                else: btn.size_hint_x = 1 
+
+                if text == '0': btn.size_hint_x = 2
+                else: btn.size_hint_x = 1
                 row.add_widget(btn)
             grid.add_widget(row)
 
@@ -533,7 +564,7 @@ class CalculatorScreen(BoxLayout):
         create_row([('4', 'num'), ('5', 'num'), ('6', 'num'), ('-', 'accent')])
         create_row([('1', 'num'), ('2', 'num'), ('3', 'num'), ('+', 'accent')])
         create_row([('0', 'num'), ('.', 'num'), ('=', 'find')])
-            
+
         self.add_widget(grid)
 
     def on_press(self, char):
@@ -558,120 +589,171 @@ class SettingsScreen(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation="vertical", padding=[dp(15), dp(20), dp(15), dp(10)], spacing=dp(15), **kwargs)
         settings = get_settings()
-        
+
         scroll = ScrollView()
         layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(10))
         layout.bind(minimum_height=layout.setter('height'))
 
-        # ФИКС 2 и 4: Попапы и блокировка чата
         def show_popup(title, content_text, is_chat=False):
             content = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
             if is_chat:
                 inp = GlassInput(hint_text="Введите сообщение...", size_hint=(1, None), height=dp(50))
                 btn_send = BorderedButton(text="Отправить", size_hint=(1, None), height=dp(45))
-                
+
                 def send_msg(instance):
                     inp.text = "Ожидайте, скоро с вами свяжутся"
-                    inp.readonly = True # Блокируем ввод
-                    btn_send.disabled = True # Блокируем кнопку
+                    inp.readonly = True
+                    inp.foreground_color = PALETTE["input_text"]
+                    btn_send.disabled = True
                     btn_send.text = "Отправлено"
-                    
+
                 btn_send.bind(on_press=send_msg)
                 content.add_widget(inp)
                 content.add_widget(btn_send)
             else:
                 scroll_pop = ScrollView()
-                lbl = Label(text=content_text, font_name=FONT_NAME, color=C_TEXT, size_hint_y=None, halign="left", valign="top", markup=True)
+                lbl = Label(text=content_text, font_name=FONT_NAME, color=PALETTE["text"], size_hint_y=None, halign="left", valign="top", markup=True)
                 lbl.bind(width=lambda inst, w: setattr(inst, 'text_size', (w, None)))
                 lbl.bind(texture_size=lbl.setter('size'))
                 scroll_pop.add_widget(lbl)
                 content.add_widget(scroll_pop)
-            
+
             btn_close = BorderedButton(text="Закрыть", size_hint=(1, None), height=dp(45))
             content.add_widget(btn_close)
-            
-            popup = Popup(title=title, title_font=FONT_NAME, title_color=C_TEXT, content=content, size_hint=(0.9, 0.7), background_color=C_CARD, separator_color=C_ACCENT)
+
+            popup = Popup(title=title, title_font=FONT_NAME, title_color=PALETTE["text"], content=content, size_hint=(0.9, 0.7), background_color=PALETTE["card"], separator_color=PALETTE["accent"])
             btn_close.bind(on_press=popup.dismiss)
             popup.open()
 
-        # КАСТОМИЗАЦИЯ
-        layout.add_widget(Label(text="КАСТОМИЗАЦИЯ", font_name=FONT_NAME, color=C_SUBTEXT, font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
-        
+        layout.add_widget(Label(text="КАСТОМИЗАЦИЯ", font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+
         card1 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card1.bind(minimum_height=card1.setter('height'))
-        
-        # ФИКС 3: Тема сохраняется, но вылезает попап
+
         def toggle_theme(instance, value):
             s = get_settings()
-            s["theme"] = "dark" if value else "light"
+            new_theme = "dark" if value else "light"
+            s["theme"] = new_theme
             save_settings(s)
-            if not value:
-                show_popup("Внимание", "Светлая тема находится в разработке")
+            apply_theme(new_theme)
             
+            main_layout = App.get_running_app().root.children[0] if App.get_running_app().root.children else None
+            current_tab = main_layout.current_tab if (main_layout and hasattr(main_layout, 'current_tab')) else 2
+            
+            App.get_running_app().root.clear_widgets()
+            App.get_running_app().root.add_widget(MainLayout(start_tab=current_tab))
+
         def toggle_glow(instance, value):
             s = get_settings()
             s["glow"] = value
+            PALETTE["glow"] = value
             save_settings(s)
-        
+            
+            main_layout = App.get_running_app().root.children[0] if App.get_running_app().root.children else None
+            current_tab = main_layout.current_tab if (main_layout and hasattr(main_layout, 'current_tab')) else 2
+            
+            App.get_running_app().root.clear_widgets()
+            App.get_running_app().root.add_widget(MainLayout(start_tab=current_tab))
+
         card1.add_widget(SettingsRow(icon_code="\ue51c", title="Темная тема", has_switch=True, switch_active=(settings.get("theme", "dark") == "dark"), on_switch=toggle_theme))
         card1.add_widget(Divider())
-        card1.add_widget(SettingsRow(icon_code="\ue40a", title="Цвет оформления", has_arrow=True, on_press=lambda: show_popup("Цвет оформления", "В разработке")))
+        card1.add_widget(SettingsRow(icon_code="\ue40a", title="Цвет оформления", has_arrow=True, on_press=lambda: show_popup("Цвет оформления", "Бордовый цвет закреплён как фирменный стиль Offline GDZ.")))
         card1.add_widget(Divider())
         card1.add_widget(SettingsRow(icon_code="\ue838", title="Свечение", has_switch=True, switch_active=settings.get("glow", True), on_switch=toggle_glow))
         layout.add_widget(card1)
 
-        # ПОДДЕРЖКА
-        layout.add_widget(Label(text="ПОДДЕРЖКА", font_name=FONT_NAME, color=C_SUBTEXT, font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
-        
+        layout.add_widget(Label(text="ПОДДЕРЖКА", font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+
         card2 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card2.bind(minimum_height=card2.setter('height'))
         card2.add_widget(SettingsRow(icon_code="\ue0b7", title="Чат поддержки", has_arrow=True, on_press=lambda: show_popup("Чат поддержки", "", is_chat=True)))
         card2.add_widget(Divider())
-        card2.add_widget(SettingsRow(icon_code="\ue8fd", title="FAQ", has_arrow=True, on_press=lambda: show_popup("FAQ", "[b]Как искать?[/b]\nВыбери класс, предмет и введи номер.\n\n[b]Почему нет интернета?[/b]\nПриложение работает офлайн.\n\n[b]Как связаться?[/b]\nЧерез Telegram-канал.")))
+
+        faq_text = """[b]1. Как найти решение задачи?[/b]
+Выберите класс, предмет, введите номер задачи и нажмите «НАЙТИ».
+
+[b]2. Приложение работает без интернета?[/b]
+Да, вся база данных встроена в приложение. Интернет не нужен.
+
+[b]3. Как работает калькулятор?[/b]
+Вкладка «Калькулятор» внизу. Поддерживает +, -, *, /, %, точку и удаление.
+
+[b]4. Почему задача не находится?[/b]
+Возможно, этой задачи нет в базе или вы выбрали другой класс/предмет.
+
+[b]5. Как связаться с поддержкой?[/b]
+Через «Чат поддержки» или Telegram-канал в самом низу настроек.
+
+[b]6. Как очистить историю поиска?[/b]
+Настройки → Данные → «Очистить историю».
+
+[b]7. Как сменить тему?[/b]
+Настройки → Кастомизация → переключатель «Темная тема».
+
+[b]8. Что такое свечение?[/b]
+Это неоновая подсветка кнопок. Отключается в настройках.
+
+[b]9. Как обновляется база?[/b]
+База обновляется вместе с приложением через GitHub.
+
+[b]10. Приложение бесплатное?[/b]
+Да, полностью бесплатно и без рекламы."""
+
+        card2.add_widget(SettingsRow(icon_code="\ue8fd", title="FAQ", has_arrow=True, on_press=lambda: show_popup("FAQ", faq_text)))
         layout.add_widget(card2)
 
-        # ИНФОРМАЦИЯ
-        layout.add_widget(Label(text="ИНФОРМАЦИЯ", font_name=FONT_NAME, color=C_SUBTEXT, font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
-        
+        layout.add_widget(Label(text="ИНФОРМАЦИЯ", font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+
         card3 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card3.bind(minimum_height=card3.setter('height'))
         card3.add_widget(SettingsRow(icon_code="\ue88e", title="О проекте", has_arrow=True, on_press=lambda: show_popup("О проекте", "Offline GDZ — это ваш надежный оффлайн-помощник в учебе. Мы создали это приложение, чтобы каждый ученик мог быстро найти правильное решение домашнего задания без необходимости подключаться к интернету.")))
-        
+
+        changelog_text = """[b]v1.6V (Текущая)[/b]
+• Добавлен калькулятор с 4 операциями
+• Офлайн-база данных ГДЗ
+• Кастомный тёмный дизайн (#000000, #3D0808)
+• Чат поддержки
+• FAQ с 10 вопросами
+• История поиска (до 10 запросов)
+• Анимация онлайна (спидометр)
+• Material Icons в настройках
+• Плавная тема и свечение
+
+[b]v1.0[/b]
+• Первый релиз"""
+
         def show_changelog(*args):
-            show_popup("Ченджлог", "[b]v1.6V[/b]\n- Строгий дизайн, калькулятор, JSON история\n\n[b]v1.0[/b]\n- Первый релиз")
+            show_popup("Ченджлог", changelog_text)
 
         card3.add_widget(Divider())
         card3.add_widget(SettingsRow(icon_code="\ue8e5", title="Ченджлог", has_arrow=True, on_press=show_changelog))
         layout.add_widget(card3)
 
-        # ДАННЫЕ
-        layout.add_widget(Label(text="ДАННЫЕ", font_name=FONT_NAME, color=C_SUBTEXT, font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
-        
+        layout.add_widget(Label(text="ДАННЫЕ", font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+
         card4 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card4.bind(minimum_height=card4.setter('height'))
-        
-        # ФИКС 5: Перерисовка после очистки
+
         def clear_hist(*args):
             s = get_settings()
             s["history"] = []
             save_settings(s)
             if CLICK_SOUND: CLICK_SOUND.play()
             App.get_running_app().root.clear_widgets()
-            App.get_running_app().root.add_widget(MainLayout())
-            
+            App.get_running_app().root.add_widget(MainLayout(start_tab=2))
+
         card4.add_widget(SettingsRow(icon_code="\ue872", title="Очистить историю", has_arrow=True, text_color=C_RED, on_press=clear_hist))
         layout.add_widget(card4)
 
-        # О НАС
-        layout.add_widget(Label(text="О НАС", font_name=FONT_NAME, color=C_SUBTEXT, font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
-        
+        layout.add_widget(Label(text="О НАС", font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+
         card5 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card5.bind(minimum_height=card5.setter('height'))
         card5.add_widget(SettingsRow(icon_code="\ue32c", title="Версия 1.6V", has_arrow=False))
         card5.add_widget(Divider())
         card5.add_widget(SettingsRow(icon_code="\ue163", title="Telegram-канал", has_arrow=True, on_press=lambda: webbrowser.open(TG_LINK)))
         layout.add_widget(card5)
-        
+
         layout.add_widget(Widget(size_hint=(1, None), height=dp(20)))
 
         scroll.add_widget(layout)
@@ -680,7 +762,10 @@ class SettingsScreen(BoxLayout):
 # ============ ЗАПУСК ============
 class GdzApp(App):
     def build(self):
-        Window.clearcolor = C_BG
+        s = get_settings()
+        apply_theme(s.get("theme", "dark"))
+        PALETTE["glow"] = s.get("glow", True)
+        Window.clearcolor = PALETTE["bg"]
         self.title = "Offline GDZ"
         root = BoxLayout(orientation="vertical")
         root.add_widget(SplashScreen())
