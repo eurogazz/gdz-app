@@ -3,6 +3,7 @@ import json
 import sqlite3
 import webbrowser
 import random
+import math
 from kivy.app import App
 from kivy.animation import Animation
 from kivy.clock import Clock
@@ -82,7 +83,7 @@ def get_colors():
             "text": (1, 1, 1, 1), "subtext": (0.5, 0.5, 0.5, 1),
             "btn_bg": (0.15, 0.15, 0.15, 1), "btn_text": (1, 1, 1, 1),
             "input_bg": (0.15, 0.15, 0.15, 1), "input_text": (1, 1, 1, 1),
-            "green": (0.2, 1.0, 0.4, 1), "nav_bg": (0, 0, 0, 0.85)
+            "green": (0.2, 1.0, 0.4, 1)
         }
     else:
         c = {
@@ -90,7 +91,7 @@ def get_colors():
             "text": (0, 0, 0, 1), "subtext": (0.4, 0.4, 0.4, 1),
             "btn_bg": (0.9, 0.9, 0.9, 1), "btn_text": (0, 0, 0, 1),
             "input_bg": (0.9, 0.9, 0.9, 1), "input_text": (0, 0, 0, 1),
-            "green": (0.1, 0.8, 0.3, 1), "nav_bg": (1, 1, 1, 0.85)
+            "green": (0.1, 0.8, 0.3, 1)
         }
     
     c["accent"] = accent
@@ -156,17 +157,14 @@ class NeonButton(Button):
         self.valign = 'middle'
         
         with self.canvas.before:
-            # Свечение (3 слоя)
-            self._glow_c3 = Color(*self.glow_color)
-            self._glow_r3 = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius + dp(8)])
             self._glow_c2 = Color(*self.glow_color)
-            self._glow_r2 = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius + dp(4)])
+            self._glow_r2 = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius + dp(6)])
+            self._glow_c1 = Color(*self.glow_color)
+            self._glow_r1 = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius + dp(2)])
             
-            # Обводка (если нужна)
             self._brd_c = Color(*self.border_color)
             self._brd_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
             
-            # Фон
             self._bg_c = Color(*self.bg_color)
             self._bg_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
             
@@ -174,10 +172,10 @@ class NeonButton(Button):
         self.bind(on_press=self._press, on_release=self._release)
         
     def _update(self, *a):
-        self._glow_r3.pos = (self.x - dp(8), self.y - dp(8))
-        self._glow_r3.size = (self.width + dp(16), self.height + dp(16))
-        self._glow_r2.pos = (self.x - dp(4), self.y - dp(4))
-        self._glow_r2.size = (self.width + dp(8), self.height + dp(8))
+        self._glow_r2.pos = (self.x - dp(6), self.y - dp(6))
+        self._glow_r2.size = (self.width + dp(12), self.height + dp(12))
+        self._glow_r1.pos = (self.x - dp(2), self.y - dp(2))
+        self._glow_r1.size = (self.width + dp(4), self.height + dp(4))
         
         self._brd_r.pos = self.pos
         self._brd_r.size = self.size
@@ -193,8 +191,8 @@ class NeonButton(Button):
     def _on_brd(self, *a): self._brd_c.rgba = self.border_color
     def _on_glow(self, *a):
         gc = self.glow_color if len(self.glow_color) == 4 else [1,1,1,0]
-        self._glow_c3.rgba = (gc[0], gc[1], gc[2], gc[3] * 0.1)
-        self._glow_c2.rgba = (gc[0], gc[1], gc[2], gc[3] * 0.3)
+        self._glow_c2.rgba = (gc[0], gc[1], gc[2], gc[3] * 0.15)
+        self._glow_c1.rgba = (gc[0], gc[1], gc[2], gc[3] * 0.4)
     def _on_txt(self, *a): self.color = self.text_color
     
     def _press(self, *a): 
@@ -213,7 +211,7 @@ class GlassInput(TextInput):
         self.font_name = FONT_NAME
         self.multiline = False
         self.halign = 'left'
-        self.padding_x = [dp(15)] # Безопасный отступ
+        self.padding_x = [dp(15)] 
         
         with self.canvas.before:
             self._bg_c = Color(*self.bg_color)
@@ -224,42 +222,39 @@ class GlassInput(TextInput):
         self._bg_r.size = self.size
     def _on_bg(self, *a): self._bg_c.rgba = self.bg_color
 
-# ПУЛЬСИРУЮЩИЙ ИНДИКАТОР ОНЛАЙНА
+# БЕЗОПАСНЫЙ ПУЛЬСИРУЮЩИЙ ИНДИКАТОР
 class PulsingDot(Widget):
     color_val = ListProperty([0, 1, 0, 1])
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.size_hint = (None, None)
-        self.size = (dp(10), dp(10))
-        self.scale = 1.0
-        self.alpha = 1.0
+        self.size = (dp(8), dp(8))
+        self.time = 0
         
         with self.canvas:
             self._glow_c = Color(*self.color_val[:3], 0.2)
-            self._glow = Ellipse(pos=self.pos, size=(dp(20), dp(20)))
+            self._glow = Ellipse(pos=self.pos, size=self.size)
             self._c = Color(*self.color_val)
             self._e = Ellipse(pos=self.pos, size=self.size)
             
-        self.bind(pos=self._update, size=self._update, scale=self._update, alpha=self._update)
-        
-        # Запускаем бесконечную анимацию
-        self.anim = Animation(scale=2.0, alpha=0.0, duration=1.2, t='in_out_sine') + Animation(scale=1.0, alpha=1.0, duration=0)
-        self.anim.repeat = True
-        self.anim.start(self)
+        self.bind(pos=self._update, size=self._update)
+        Clock.schedule_interval(self.update_pulse, 0.05)
 
-    def _update(self, *a):
-        # Основной кружок
-        self._e.pos = self.pos
-        self._e.size = self.size
-        self._c.rgba = (*self.color_val[:3], self.alpha)
+    def update_pulse(self, dt):
+        self.time += dt
+        scale = 1.0 + 0.5 * math.sin(self.time * 4)
         
-        # Свечение
-        w = self.size[0] * self.scale
-        h = self.size[1] * self.scale
+        w = self.size[0] * scale
+        h = self.size[1] * scale
+        
         self._glow.pos = (self.center_x - w/2, self.center_y - h/2)
         self._glow.size = (w, h)
-        self._glow_c.rgba = (*self.color_val[:3], self.alpha * 0.3)
+        self._glow_c.rgba = (*self.color_val[:3], 0.3)
+
+    def _update(self, *a):
+        self._e.pos = self.pos
+        self._e.size = self.size
 
 # ============ ЭКРАНЫ ============
 
@@ -271,14 +266,17 @@ class SplashScreen(BoxLayout):
         
         self.add_widget(Widget())
         
-        # Простой логотип с обводкой
-        logo = Label(
-            text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36),
-            color=(1,1,1,1), outline_width=dp(3), outline_color=c["accent"],
-            halign="center", valign="middle", size_hint=(1, None), height=dp(80)
-        )
-        self.add_widget(logo)
+        # ИСТИННЫЙ НЕОН: 5 слоев текста
+        logo_layout = FloatLayout(size_hint=(1, None), height=dp(80))
+        ac = c["accent"]
         
+        logo_layout.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36), color=(0,0,0,0), outline_width=dp(14), outline_color=(ac[0],ac[1],ac[2],0.1), halign="center", valign="middle"))
+        logo_layout.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36), color=(0,0,0,0), outline_width=dp(9), outline_color=(ac[0],ac[1],ac[2],0.2), halign="center", valign="middle"))
+        logo_layout.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36), color=(0,0,0,0), outline_width=dp(5), outline_color=(ac[0],ac[1],ac[2],0.4), halign="center", valign="middle"))
+        logo_layout.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36), color=(0,0,0,0), outline_width=dp(2), outline_color=(ac[0],ac[1],ac[2],0.8), halign="center", valign="middle"))
+        logo_layout.add_widget(Label(text="OFFLINE GDZ", font_name=FONT_NAME, bold=True, font_size=sp(36), color=(1,1,1,1), halign="center", valign="middle"))
+        
+        self.add_widget(logo_layout)
         self.add_widget(Widget())
         Clock.schedule_once(self.next_screen, 1.5)
 
@@ -295,12 +293,7 @@ class MainLayout(BoxLayout):
         self.content = BoxLayout(orientation="vertical")
         self.add_widget(self.content)
         
-        # Полупрозрачное нижнее меню
         self.nav_bar = BoxLayout(size_hint=(1, None), height=dp(60), spacing=dp(5), padding=[dp(5), dp(5), dp(5), dp(5)])
-        with self.nav_bar.canvas.before:
-            self.nav_bg_c = Color(*c["nav_bg"])
-            self.nav_bg_r = RoundedRectangle(pos=self.nav_bar.pos, size=self.nav_bar.size, radius=[dp(15)])
-        self.nav_bar.bind(pos=lambda inst, val: setattr(self.nav_bg_r, 'pos', val), size=lambda inst, val: setattr(self.nav_bg_r, 'size', val))
         
         self.btn_search = self._make_nav_btn("Поиск", 0)
         self.btn_settings = self._make_nav_btn("Настройки", 1)
@@ -323,7 +316,6 @@ class MainLayout(BoxLayout):
         self.current_tab = index
         c = get_colors()
         
-        # Обновляем цвета кнопок меню
         if index == 0:
             self.btn_search.text_color = c["accent"]
             self.btn_settings.text_color = c["subtext"]
@@ -343,11 +335,11 @@ class SearchScreen(BoxLayout):
         self.sel_subject = None
         
         top_row = BoxLayout(size_hint=(1, None), height=dp(40))
-        top_row.add_widget(Label(text="[b]Найти решение[/b]", markup=True, halign="left", font_name=FONT_NAME, color=c["text"], font_size=sp(22)))
+        top_row.add_widget(Label(text="[b]Поиск[/b]", markup=True, halign="left", font_name=FONT_NAME, color=c["text"], font_size=sp(22)))
         
         online_box = BoxLayout(size_hint=(0.3, 1), spacing=dp(5))
         online_box.add_widget(Widget())
-        online_box.add_widget(PulsingDot(color_val=c["green"], size_hint=(None,None), size=(dp(8),dp(8)), pos_hint={'center_y': 0.5}))
+        online_box.add_widget(PulsingDot(color_val=c["green"]))
         online_box.add_widget(Label(text=str(random.randint(10, 99)), font_name=FONT_NAME, color=c["green"], font_size=sp(14), bold=True))
         online_box.add_widget(Widget())
         top_row.add_widget(online_box)
@@ -357,7 +349,6 @@ class SearchScreen(BoxLayout):
         layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(15))
         layout.bind(minimum_height=layout.setter('height'))
         
-        # Классы (Прозрачные с обводкой)
         layout.add_widget(Label(text="Класс", font_name=FONT_NAME, color=c["subtext"], size_hint=(1, None), height=dp(20), bold=True, halign="left"))
         grid_cls = GridLayout(cols=7, size_hint=(1, None), height=dp(45), spacing=dp(5))
         self.cls_buttons = []
@@ -368,7 +359,6 @@ class SearchScreen(BoxLayout):
             self.cls_buttons.append(b)
         layout.add_widget(grid_cls)
         
-        # Предметы
         layout.add_widget(Label(text="Предмет", font_name=FONT_NAME, color=c["subtext"], size_hint=(1, None), height=dp(20), bold=True, halign="left"))
         grid_subj = GridLayout(cols=3, size_hint=(1, None), height=dp(130), spacing=dp(5))
         self.subj_buttons = []
@@ -379,11 +369,9 @@ class SearchScreen(BoxLayout):
             self.subj_buttons.append(b)
         layout.add_widget(grid_subj)
         
-        # Ввод
         self.num_input = GlassInput(hint_text="Номер задачи", size_hint=(1, None), height=dp(55), font_size=sp(16), bg_color=c["input_bg"], foreground_color=c["input_text"], cursor_color=c["accent"], hint_text_color=c["subtext"])
         layout.add_widget(self.num_input)
         
-        # Кнопка Найти (Темная с яркой обводкой и свечением)
         btn = NeonButton(text="НАЙТИ", bg_color=c["bg"], glow_color=c["accent"], text_color=c["accent"], is_outline=True, border_color=c["accent"], bold=True, size_hint=(1, None), height=dp(55), font_size=sp(16))
         btn.bind(on_press=self.do_search)
         layout.add_widget(btn)
@@ -406,7 +394,6 @@ class SearchScreen(BoxLayout):
             b.text_color = c["text"]
             b.border_color = c["card_border"]
             b.glow_color = (0,0,0,0)
-            
         btn.bg_color = c["accent"]
         btn.text_color = c["accent_text"]
         btn.border_color = c["accent"]
@@ -420,7 +407,6 @@ class SearchScreen(BoxLayout):
             b.text_color = c["text"]
             b.border_color = c["card_border"]
             b.glow_color = (0,0,0,0)
-            
         btn.bg_color = c["accent"]
         btn.text_color = c["accent_text"]
         btn.border_color = c["accent"]
@@ -436,7 +422,6 @@ class SearchScreen(BoxLayout):
         self.res_lbl.text = sol
         self.result_card.height = self.res_lbl.height + dp(30)
 
-
 class SettingsScreen(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation="vertical", padding=dp(15), spacing=dp(10), **kwargs)
@@ -449,10 +434,8 @@ class SettingsScreen(BoxLayout):
         layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(10))
         layout.bind(minimum_height=layout.setter('height'))
 
-        # --- ВНЕШНИЙ ВИД ---
         layout.add_widget(Label(text="ВНЕШНИЙ ВИД", font_name=FONT_NAME, color=c["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
         
-        # Тема (Segmented Control)
         card_theme = GlassCard(orientation="vertical", padding=dp(10), spacing=dp(10), size_hint=(1, None), height=dp(70), bg_color=c["card"], border_color=c["card_border"])
         card_theme.add_widget(Label(text="Тема приложения", font_name=FONT_NAME, color=c["text"], font_size=sp(14), halign="left"))
         grid_theme = GridLayout(cols=3, size_hint=(1, None), height=dp(35), spacing=dp(5))
@@ -464,7 +447,6 @@ class SettingsScreen(BoxLayout):
         card_theme.add_widget(grid_theme)
         layout.add_widget(card_theme)
         
-        # Цвет
         card_accent = GlassCard(orientation="vertical", padding=dp(10), spacing=dp(10), size_hint=(1, None), height=dp(70), bg_color=c["card"], border_color=c["card_border"])
         card_accent.add_widget(Label(text="Цвет оформления", font_name=FONT_NAME, color=c["text"], font_size=sp(14), halign="left"))
         grid_acc = GridLayout(cols=4, size_hint=(1, None), height=dp(35), spacing=dp(5))
@@ -472,7 +454,6 @@ class SettingsScreen(BoxLayout):
             is_active = (settings.get("accent") == a_key)
             b = NeonButton(text="", bg_color=ACCENTS[a_key]["dark"], size_hint=(None,None), size=(dp(35), dp(35)), glow_color=ACCENTS[a_key]["dark"] if is_active else (0,0,0,0))
             b.bind(on_press=lambda inst, k=a_key: self.change_setting("accent", k))
-            # Центрируем кружки
             box = BoxLayout()
             box.add_widget(Widget())
             box.add_widget(b)
@@ -481,7 +462,6 @@ class SettingsScreen(BoxLayout):
         card_accent.add_widget(grid_acc)
         layout.add_widget(card_accent)
 
-        # --- ДАННЫЕ ---
         layout.add_widget(Label(text="ДАННЫЕ", font_name=FONT_NAME, color=c["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
         
         card_data = GlassCard(orientation="vertical", padding=dp(10), spacing=dp(10), size_hint=(1, None), height=dp(60), bg_color=c["card"], border_color=c["card_border"])
@@ -490,7 +470,6 @@ class SettingsScreen(BoxLayout):
         card_data.add_widget(btn_clear)
         layout.add_widget(card_data)
 
-        # --- О ПРИЛОЖЕНИИ ---
         layout.add_widget(Label(text="О ПРИЛОЖЕНИИ", font_name=FONT_NAME, color=c["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
         
         card_info = GlassCard(orientation="vertical", padding=dp(10), spacing=dp(10), size_hint=(1, None), height=dp(120), bg_color=c["card"], border_color=c["card_border"])
