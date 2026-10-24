@@ -12,13 +12,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build with Buildozer (using GitHub Container Registry)
+      - name: Build with Buildozer
         run: |
           docker run --rm \
-            --user $(id -u):$(id -g) \
-            -e HOME=/tmp \
             -v ${{ github.workspace }}:/home/user/hostcwd \
             ghcr.io/kivy/buildozer:latest android debug
+
+      - name: Give permissions for APK
+        run: |
+          sudo chown -R $(id -u):$(id -g) bin/ || true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
