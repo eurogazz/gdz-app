@@ -9,7 +9,8 @@ source.include_exts = py,png,jpg,kv,atlas,db,webp,ttf,wav
 source.exclude_dirs = bin,.buildozer,__pycache__
 
 version = 1.6
-requirements = python3,kivy
+# ВОТ СЮДА ВСТАВЛЕНЫ ВСЕ ЗАВИСИМОСТИ ДЛЯ ПЕРЕВОДЧИКА
+requirements = python3,kivy,googletrans==4.0.0rc1,httpx==0.13.3,httpcore==0.9.1,h11==0.9.0,hstspreload,rfc3986==1.5.0,sniffio,idna,certifi,chardet,hyperframe,hpack,h2
 
 orientation = portrait
 fullscreen = 0
@@ -17,7 +18,8 @@ fullscreen = 0
 # Иконка и заставка
 icon.filename = %(source.dir)s/logo.png
 presplash.filename = %(source.dir)s/logo.png
-android.presplash_color = 000000
+# Цвет фона заставки (черный) в формате RGB, чтобы не было проблем с символом #
+android.presplash_color = 0,0,0
 
 # Настройки Android
 android.api = 33

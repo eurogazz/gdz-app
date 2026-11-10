@@ -1,29 +1,34 @@
-import os
+import asyncio
+import inspect
 import json
-import sqlite3
-import webbrowser
-import random
 import math
-from kivy.app import App
+import os
+import random
+import sqlite3
+import threading
+import webbrowser
+
 from kivy.animation import Animation
+from kivy.app import App
 from kivy.clock import Clock
+from kivy.core.audio import SoundLoader
+from kivy.core.text import LabelBase
 from kivy.core.window import Window
-from kivy.graphics import Color, RoundedRectangle, Ellipse, Rectangle
+from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle
 from kivy.metrics import dp, sp
-from kivy.properties import ListProperty, NumericProperty, StringProperty, BooleanProperty
+from kivy.properties import BooleanProperty, NumericProperty
+from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
-from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
+from kivy.uix.image import Image
 from kivy.uix.label import Label
+from kivy.uix.popup import Popup
+from kivy.uix.screenmanager import NoTransition, Screen, ScreenManager
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
-from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.popup import Popup
-from kivy.uix.image import Image
-from kivy.core.text import LabelBase
-from kivy.core.audio import SoundLoader
 
 Window.softinput_mode = 'below_target'
 
@@ -36,18 +41,23 @@ MATERIAL_FONT = os.path.join(BASE_DIR, "fonts", "MaterialIcons-Regular.ttf")
 if os.path.exists(MATERIAL_FONT):
     LabelBase.register(name="MaterialIcons", fn_regular=MATERIAL_FONT)
 
+
 def get_data_file():
     try:
         app = App.get_running_app()
-        if app: return os.path.join(app.user_data_dir, "user_data.json")
-    except: pass
+        if app:
+            return os.path.join(app.user_data_dir, "user_data.json")
+    except Exception:
+        pass
     return os.path.join(BASE_DIR, "user_data.json")
 
+
+# ============ ПАЛИТРА (фирменная, бордовая) ============
 PALETTE = {
     "bg": (0.0, 0.0, 0.0, 1.0),
     "card": (0.07, 0.07, 0.07, 1.0),
     "border": (0.165, 0.165, 0.165, 1.0),
-    "accent": (0.24, 0.03, 0.03, 1.0),
+    "accent": (0.24, 0.03, 0.03, 1.0),          # #3D0808
     "accent_border": (0.48, 0.10, 0.10, 1.0),
     "text": (1.0, 1.0, 1.0, 1.0),
     "subtext": (0.6, 0.6, 0.6, 1.0),
@@ -58,6 +68,7 @@ PALETTE = {
 
 C_RED = (1.0, 0.26, 0.26, 1.0)
 C_GREEN = (0.2, 1.0, 0.4, 1.0)
+
 
 def apply_theme(theme_name):
     if theme_name == "light":
@@ -78,21 +89,23 @@ def apply_theme(theme_name):
         PALETTE["input_hint"] = (0.6, 0.6, 0.6, 1.0)
     Window.clearcolor = PALETTE["bg"]
 
+
 TG_LINK = "https://t.me/BeamForge"
 CLASSES = [5, 6, 7, 8, 9, 10, 11]
-SUBJECTS = ["Математика", "Алгебра", "Геометрия", "Русский", "Английский", "Физика", "Химия"]
+SUBJECTS = ["Алгебра", "Геометрия", "Русский", "Английский", "Физика", "Химия", "Немецкий"]
 
 try:
     CLICK_SOUND = SoundLoader.load(os.path.join(BASE_DIR, 'click.wav'))
-except:
+except Exception:
     CLICK_SOUND = None
 
 DEFAULT_SETTINGS = {
     "theme": "dark",
     "glow": True,
     "online": random.randint(10, 99),
-    "history": []
+    "history": [],
 }
+
 
 def get_settings():
     data_file = get_data_file()
@@ -105,28 +118,50 @@ def get_settings():
                         if k not in data:
                             data[k] = v
                     return data
-        except: pass
+        except Exception:
+            pass
     return DEFAULT_SETTINGS.copy()
+
 
 def save_settings(data):
     try:
-        with open(get_data_file(), "w") as f: json.dump(data, f)
-    except: pass
+        with open(get_data_file(), "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
 
 GLOBAL_ONLINE = get_settings()["online"]
 
+
 def find_solution(class_num, subject, number):
-    if not os.path.exists(DB_PATH): return "База данных не найдена.", None
+    if not os.path.exists(DB_PATH):
+        return "База данных не найдена.", None
     try:
         conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
-        cur.execute("SELECT t.solution, b.cover FROM tasks t JOIN books b ON t.book_id = b.id WHERE b.class = ? AND b.subject = ? AND t.number = ? LIMIT 1", (class_num, subject, str(number).strip()))
+        cur.execute(
+            "SELECT t.solution, b.cover FROM tasks t JOIN books b ON t.book_id = b.id "
+            "WHERE b.class = ? AND b.subject = ? AND t.number = ? LIMIT 1",
+            (class_num, subject, str(number).strip()),
+        )
         row = cur.fetchone()
         conn.close()
-        if row: return row[0], row[1]
+        if row:
+            return row[0], row[1]
         return "Задача не найдена в базе.", None
     except Exception as e:
         return f"Ошибка базы: {e}", None
+
+
+def translate_text(text, src):
+    """Перевод через googletrans. Работает и с синхронной, и с async-версией."""
+    from googletrans import Translator
+    res = Translator().translate(text, src=src, dest='ru')
+    if inspect.isawaitable(res):
+        res = asyncio.run(res)
+    return res.text
+
 
 # ============ ВИДЖЕТЫ ============
 
@@ -137,9 +172,11 @@ class Divider(Widget):
             Color(*PALETTE["border"])
             self.rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self.update_rect, size=self.update_rect)
+
     def update_rect(self, *args):
         self.rect.pos = self.pos
         self.rect.size = self.size
+
 
 class CustomCard(BoxLayout):
     def __init__(self, **kwargs):
@@ -156,6 +193,7 @@ class CustomCard(BoxLayout):
         self._border_r.size = self.size
         self._bg_r.pos = (self.x + dp(1), self.y + dp(1))
         self._bg_r.size = (self.width - dp(2), self.height - dp(2))
+
 
 class BorderedButton(Button):
     is_active = BooleanProperty(False)
@@ -180,7 +218,9 @@ class BorderedButton(Button):
             self._bg_c = Color(*PALETTE["card"])
             self._bg_r = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.radius])
 
-        self.bind(pos=self._update, size=self._update, is_active=self._update_colors, is_find=self._update_colors, radius=self._update_radius)
+        self.bind(pos=self._update, size=self._update,
+                  is_active=self._update_colors, is_find=self._update_colors,
+                  radius=self._update_radius)
         self._update_colors()
 
     def _update_radius(self, *a):
@@ -211,23 +251,22 @@ class BorderedButton(Button):
         self._bg_r.pos = (self.x + dp(1), self.y + dp(1))
         self._bg_r.size = (self.width - dp(2), self.height - dp(2))
 
-# ФИКС ТЕКСТА: Убран font_name, жесткие отступы и цвета
+
 class GlassInput(TextInput):
+    """Поле ввода. font_name не задаём. Цвета текста берём из палитры
+    (в тёмной теме это белый, в светлой - чёрный, иначе текст был бы невидим)."""
+
     def __init__(self, **kwargs):
+        kwargs.setdefault("multiline", False)
         super().__init__(**kwargs)
         self.background_normal = ""
         self.background_active = ""
         self.background_color = (0, 0, 0, 0)
-        self.multiline = False
-        
-        # Жестко задаем цвета
-        self.foreground_color = (1, 1, 1, 1)
-        self.cursor_color = (1, 1, 1, 1)
-        self.hint_text_color = (0.6, 0.6, 0.6, 1)
-        
-        # Отступы по осям (фиксит невидимый текст)
-        self.padding_x = [dp(15)]
-        self.padding_y = [dp(15), dp(15)]
+
+        self.foreground_color = PALETTE["input_text"]
+        self.cursor_color = PALETTE["input_text"]
+        self.hint_text_color = PALETTE["input_hint"]
+        self.padding = [dp(15), dp(15), dp(15), dp(15)]
 
         with self.canvas.before:
             self._border_c = Color(*PALETTE["border"])
@@ -242,26 +281,60 @@ class GlassInput(TextInput):
         self._bg_r.pos = (self.x + dp(1), self.y + dp(1))
         self._bg_r.size = (self.width - dp(2), self.height - dp(2))
 
+
+class ResultCard(CustomCard):
+    """Карточка с результатом. Высота считается по тексту (с texture_update)."""
+
+    def __init__(self, **kwargs):
+        super().__init__(orientation="vertical", padding=dp(15),
+                         size_hint=(1, None), height=dp(1), **kwargs)
+        self.res_lbl = Label(text="", font_name=FONT_NAME, color=PALETTE["text"],
+                             size_hint_y=None, halign="left", valign="top")
+        self.res_lbl.bind(width=self._on_width)
+        self.add_widget(self.res_lbl)
+
+    def _on_width(self, inst, w):
+        inst.text_size = (w, None)
+        if inst.text:
+            self.show(inst.text)
+
+    def show(self, text):
+        self.res_lbl.text = text
+        self.res_lbl.texture_update()
+        self.res_lbl.height = self.res_lbl.texture_size[1]
+        self.height = self.res_lbl.texture_size[1] + dp(30)
+
+
 class PulsingDot(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.size_hint = (None, None)
         self.size = (dp(8), dp(8))
         self.time = 0
+        self._ev = None
         with self.canvas:
             self._glow_c = Color(*C_GREEN[:3], 0.2)
             self._glow = Ellipse(pos=self.pos, size=self.size)
             self._c = Color(*C_GREEN)
             self._e = Ellipse(pos=self.pos, size=self.size)
         self.bind(pos=self._update)
-        Clock.schedule_interval(self.update_pulse, 0.05)
+        self.start()
+
+    def start(self):
+        if self._ev is None:
+            self._ev = Clock.schedule_interval(self.update_pulse, 0.05)
+
+    def stop(self):
+        if self._ev is not None:
+            self._ev.cancel()
+            self._ev = None
 
     def update_pulse(self, dt):
         self.time += dt
         scale = 1.0 + 0.4 * (0.5 + 0.5 * math.sin(self.time * 4))
         w = self.size[0] * scale
         h = self.size[1] * scale
-        self._glow.pos = (self.center_x - w/2, self.center_y - h/2)
+        self._glow.pos = (self.center_x - w / 2, self.center_y - h / 2)
         self._glow.size = (w, h)
         self._glow_c.a = 0.1 + 0.2 * (0.5 + 0.5 * math.sin(self.time * 4))
 
@@ -269,15 +342,26 @@ class PulsingDot(Widget):
         self._e.pos = self.pos
         self._e.size = self.size
 
-# ФИКС ОНЛАЙНА: Мгновенный старт, сохранение в глобал, без прыжков
+
 class SmoothCounter(Label):
     value = NumericProperty(0)
+
     def __init__(self, start_val=0, **kwargs):
         super().__init__(**kwargs)
+        self._ev = None
         self.value = start_val
         self.text = str(int(self.value))
         self.bind(value=self._on_value_change)
-        Clock.schedule_interval(self._simulate_change, 4.0)
+        self.start()
+
+    def start(self):
+        if self._ev is None:
+            self._ev = Clock.schedule_interval(self._simulate_change, 4.0)
+
+    def stop(self):
+        if self._ev is not None:
+            self._ev.cancel()
+            self._ev = None
 
     def _on_value_change(self, instance, value):
         self.text = str(int(value))
@@ -293,8 +377,10 @@ class SmoothCounter(Label):
             s["online"] = new_val
             save_settings(s)
 
+
 class CustomSwitch(ButtonBehavior, Widget):
     active = BooleanProperty(False)
+
     def __init__(self, active=False, **kwargs):
         super().__init__(**kwargs)
         self.size_hint = (None, None)
@@ -327,45 +413,66 @@ class CustomSwitch(ButtonBehavior, Widget):
 
     def on_release(self):
         self.active = not self.active
-        if CLICK_SOUND: CLICK_SOUND.play()
+        if CLICK_SOUND:
+            CLICK_SOUND.play()
+
 
 class SettingsRow(ButtonBehavior, BoxLayout):
-    def __init__(self, icon_code, title, has_switch=False, switch_active=False, on_switch=None, has_arrow=False, text_color=None, on_press=None, **kwargs):
-        super().__init__(orientation='horizontal', size_hint=(1, None), height=dp(56), padding=[dp(15), 0], **kwargs)
+    def __init__(self, icon_code, title, has_switch=False, switch_active=False,
+                 on_switch=None, has_arrow=False, text_color=None, on_press=None, **kwargs):
+        super().__init__(orientation='horizontal', size_hint=(1, None), height=dp(56),
+                         padding=[dp(15), 0], **kwargs)
 
         if text_color is None:
             text_color = PALETTE["text"]
 
-        self.add_widget(Label(text=icon_code, font_name="MaterialIcons", font_size=sp(20), color=PALETTE["subtext"], size_hint=(None, 1), width=dp(30)))
+        self.add_widget(Label(text=icon_code, font_name="MaterialIcons", font_size=sp(20),
+                              color=PALETTE["subtext"], size_hint=(None, 1), width=dp(30)))
 
-        self.title_lbl = Label(text=title, font_name=FONT_NAME, font_size=sp(15), color=text_color, halign='left', valign='middle')
+        self.title_lbl = Label(text=title, font_name=FONT_NAME, font_size=sp(15),
+                               color=text_color, halign='left', valign='middle')
         self.title_lbl.bind(size=self.title_lbl.setter('text_size'))
         self.add_widget(self.title_lbl)
 
         if has_switch:
             sw = CustomSwitch(active=switch_active, pos_hint={'center_y': .5})
-            if on_switch: sw.bind(active=on_switch)
+            if on_switch:
+                sw.bind(active=on_switch)
             self.add_widget(sw)
         elif has_arrow:
-            self.add_widget(Label(text=">", font_name=FONT_NAME, font_size=sp(18), color=PALETTE["subtext"], size_hint=(None, 1), width=dp(20)))
+            self.add_widget(Label(text=">", font_name=FONT_NAME, font_size=sp(18),
+                                  color=PALETTE["subtext"], size_hint=(None, 1), width=dp(20)))
 
         if on_press:
             self.bind(on_release=lambda *args: on_press())
 
+
 # ============ ЭКРАНЫ ============
 
-class SplashScreen(FloatLayout):
+class TabScreen(Screen):
+    """База для вкладок: Screen с вертикальным body внутри."""
+
+    def __init__(self, padding=None, spacing=dp(15), **kwargs):
+        super().__init__(**kwargs)
+        if padding is None:
+            padding = [dp(15), dp(20), dp(15), dp(10)]
+        self.body = BoxLayout(orientation="vertical", padding=padding, spacing=spacing)
+        self.add_widget(self.body)
+
+
+class SplashScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         Window.clearcolor = PALETTE["bg"]
 
+        root = FloatLayout()
         self.logo = Image(source=LOGO_PATH, size_hint=(None, None), size=(dp(230), dp(230)),
                           pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0)
-        self.add_widget(self.logo)
+        root.add_widget(self.logo)
+        self.add_widget(root)
 
         anim = Animation(opacity=1, duration=1.0) + Animation(size=(dp(250), dp(250)), duration=1.0, t='out_quad')
         anim.start(self.logo)
-
         Clock.schedule_once(self.fade_out, 2.5)
 
     def fade_out(self, dt):
@@ -374,74 +481,32 @@ class SplashScreen(FloatLayout):
         anim.start(self.logo)
 
     def next_screen(self, *args):
-        App.get_running_app().root.clear_widgets()
-        App.get_running_app().root.add_widget(MainLayout())
+        App.get_running_app().show_main("search")
 
-class MainLayout(BoxLayout):
-    def __init__(self, start_tab=0, **kwargs):
-        super().__init__(orientation="vertical", **kwargs)
-        Window.clearcolor = PALETTE["bg"]
 
-        self.content = BoxLayout(orientation="vertical")
-        self.add_widget(self.content)
-
-        self.nav_bar = BoxLayout(size_hint=(1, None), height=dp(60), spacing=dp(5), padding=[dp(5), dp(5), dp(5), dp(5)])
-
-        self.btn_search = self._make_nav_btn("Поиск", 0)
-        self.btn_calc = self._make_nav_btn("Калькулятор", 1)
-        self.btn_settings = self._make_nav_btn("Настройки", 2)
-
-        self.nav_bar.add_widget(self.btn_search)
-        self.nav_bar.add_widget(self.btn_calc)
-        self.nav_bar.add_widget(self.btn_settings)
-        self.add_widget(self.nav_bar)
-
-        self.current_tab = -1
-        self.switch_tab(start_tab)
-
-    def _make_nav_btn(self, text, index):
-        btn = BorderedButton(text=text, bold=True, radius=dp(8), font_size=sp(13))
-        btn.bind(on_press=lambda *_: self.switch_tab(index))
-        return btn
-
-    def switch_tab(self, index):
-        if self.current_tab == index: return
-        self.current_tab = index
-
-        self.btn_search.is_active = (index == 0)
-        self.btn_calc.is_active = (index == 1)
-        self.btn_settings.is_active = (index == 2)
-
-        self.content.clear_widgets()
-        if index == 0: self.content.add_widget(SearchScreen())
-        elif index == 1: self.content.add_widget(CalculatorScreen())
-        elif index == 2: self.content.add_widget(SettingsScreen())
-
-class SearchScreen(BoxLayout):
+class SearchScreen(TabScreen):
     def __init__(self, **kwargs):
-        super().__init__(orientation="vertical", padding=[dp(15), dp(20), dp(15), dp(10)], spacing=dp(15), **kwargs)
+        super().__init__(spacing=dp(15), **kwargs)
         self.sel_class = None
         self.sel_subject = None
 
         top_row = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(40))
         online_container = BoxLayout(orientation='horizontal', size_hint=(None, 1), width=dp(80), spacing=dp(6))
-        dot = PulsingDot(size_hint=(None, None), size=(dp(8), dp(8)), pos_hint={'center_y': 0.5})
-        
-        # ФИКС ОНЛАЙНА
-        counter = SmoothCounter(start_val=GLOBAL_ONLINE, font_name=FONT_NAME, color=C_GREEN, font_size=sp(16), bold=True, valign='middle')
-
-        online_container.add_widget(dot)
-        online_container.add_widget(counter)
-
+        self.dot = PulsingDot(size_hint=(None, None), size=(dp(8), dp(8)), pos_hint={'center_y': 0.5})
+        self.counter = SmoothCounter(start_val=GLOBAL_ONLINE, font_name=FONT_NAME, color=C_GREEN,
+                                     font_size=sp(16), bold=True, valign='middle')
+        online_container.add_widget(self.dot)
+        online_container.add_widget(self.counter)
         top_row.add_widget(Widget())
         top_row.add_widget(online_container)
-        self.add_widget(top_row)
+        self.body.add_widget(top_row)
 
         scroll = ScrollView()
         layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(15))
         layout.bind(minimum_height=layout.setter('height'))
 
-        layout.add_widget(Label(text="Класс", font_name=FONT_NAME, color=PALETTE["subtext"], size_hint=(1, None), height=dp(20), bold=True, halign="left"))
+        layout.add_widget(Label(text="Класс", font_name=FONT_NAME, color=PALETTE["subtext"],
+                                size_hint=(1, None), height=dp(20), bold=True, halign="left"))
         grid_cls = GridLayout(cols=7, size_hint=(1, None), height=dp(45), spacing=dp(5))
         self.cls_buttons = []
         for cls in CLASSES:
@@ -451,7 +516,8 @@ class SearchScreen(BoxLayout):
             self.cls_buttons.append(b)
         layout.add_widget(grid_cls)
 
-        layout.add_widget(Label(text="Предмет", font_name=FONT_NAME, color=PALETTE["subtext"], size_hint=(1, None), height=dp(20), bold=True, halign="left"))
+        layout.add_widget(Label(text="Предмет", font_name=FONT_NAME, color=PALETTE["subtext"],
+                                size_hint=(1, None), height=dp(20), bold=True, halign="left"))
         grid_subj = GridLayout(cols=3, size_hint=(1, None), height=dp(130), spacing=dp(5))
         self.subj_buttons = []
         for s in SUBJECTS:
@@ -464,39 +530,55 @@ class SearchScreen(BoxLayout):
         self.num_input = GlassInput(hint_text="Номер задачи", size_hint=(1, None), height=dp(55))
         layout.add_widget(self.num_input)
 
-        btn_find = BorderedButton(text="НАЙТИ", is_find=True, bold=True, size_hint=(1, None), height=dp(55), font_size=sp(16))
+        btn_find = BorderedButton(text="НАЙТИ", is_find=True, bold=True,
+                                  size_hint=(1, None), height=dp(55), font_size=sp(16))
         btn_find.bind(on_press=self.do_search)
         layout.add_widget(btn_find)
 
-        self.history_layout = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(40), spacing=dp(5))
+        self.history_layout = BoxLayout(orientation='horizontal', size_hint=(1, None),
+                                        height=dp(40), spacing=dp(5))
         layout.add_widget(self.history_layout)
         self.update_history_ui()
 
-        self.result_card = CustomCard(orientation="vertical", padding=dp(15), size_hint=(1, None), height=dp(1))
-        self.res_lbl = Label(text="", font_name=FONT_NAME, color=PALETTE["text"], size_hint_y=None, halign="left", valign="top")
-        self.res_lbl.bind(width=lambda inst, w: setattr(inst, 'text_size', (w, None)))
-        self.res_lbl.bind(texture_size=self.res_lbl.setter('size'))
-        self.result_card.add_widget(self.res_lbl)
+        self.result_card = ResultCard()
+        self.res_lbl = self.result_card.res_lbl
         layout.add_widget(self.result_card)
 
         scroll.add_widget(layout)
-        self.add_widget(scroll)
+        self.body.add_widget(scroll)
+
+    # --- онлайн-счётчик крутится только пока вкладка на экране
+    def start_online(self):
+        self.dot.start()
+        self.counter.start()
+
+    def stop_online(self):
+        self.dot.stop()
+        self.counter.stop()
+
+    def on_enter(self, *args):
+        self.start_online()
+
+    def on_leave(self, *args):
+        self.stop_online()
 
     def set_class(self, val, btn):
         self.sel_class = val
-        for b in self.cls_buttons: b.is_active = False
+        for b in self.cls_buttons:
+            b.is_active = False
         btn.is_active = True
 
     def set_subject(self, val, btn):
         self.sel_subject = val
-        for b in self.subj_buttons: b.is_active = False
+        for b in self.subj_buttons:
+            b.is_active = False
         btn.is_active = True
 
     def update_history_ui(self):
         self.history_layout.clear_widgets()
-        s = get_settings()
-        history = s.get("history", [])
-        if not history: return
+        history = get_settings().get("history", [])
+        if not history:
+            return
         for q in history[-3:]:
             btn = BorderedButton(text=q, size_hint=(1, 1), font_size=sp(12))
             btn.bind(on_press=lambda inst, val=q: self.do_quick_search(val))
@@ -510,12 +592,15 @@ class SearchScreen(BoxLayout):
         num = self.num_input.text.strip()
         if not self.sel_class or not self.sel_subject or not num:
             self.res_lbl.text = "Выбери класс, предмет и введи номер."
+            self.res_lbl.texture_update()
             self.result_card.height = self.res_lbl.texture_size[1] + dp(30)
+            self.res_lbl.height = self.res_lbl.texture_size[1]
             return
 
         s = get_settings()
         history = s.get("history", [])
-        if num in history: history.remove(num)
+        if num in history:
+            history.remove(num)
         history.append(num)
         s["history"] = history[-10:]
         save_settings(s)
@@ -523,19 +608,23 @@ class SearchScreen(BoxLayout):
 
         sol, _ = find_solution(self.sel_class, self.sel_subject, num)
         self.res_lbl.text = sol
+        self.res_lbl.texture_update()
         self.result_card.height = self.res_lbl.texture_size[1] + dp(30)
+        self.res_lbl.height = self.res_lbl.texture_size[1]
 
-class CalculatorScreen(BoxLayout):
+
+class CalculatorScreen(TabScreen):
     def __init__(self, **kwargs):
-        super().__init__(orientation="vertical", padding=[dp(15), dp(20), dp(15), dp(10)], spacing=dp(10), **kwargs)
+        super().__init__(spacing=dp(10), **kwargs)
         self.expression = ""
 
-        self.display = Label(text="", font_name=FONT_NAME, font_size=sp(42), color=PALETTE["text"], halign="right", valign="middle")
+        self.display = Label(text="", font_name=FONT_NAME, font_size=sp(42), color=PALETTE["text"],
+                             halign="right", valign="middle")
         self.display.bind(size=self.display.setter('text_size'))
 
         disp_card = CustomCard(padding=dp(15), size_hint=(1, None), height=dp(80))
         disp_card.add_widget(self.display)
-        self.add_widget(disp_card)
+        self.body.add_widget(disp_card)
 
         grid = GridLayout(cols=1, spacing=dp(8), size_hint=(1, 1))
 
@@ -550,7 +639,6 @@ class CalculatorScreen(BoxLayout):
 
                 if btype == 'accent':
                     btn.is_active = True
-                    btn.text_color = PALETTE["text"]
                 elif btype == 'find':
                     btn.is_find = True
                 elif btype == 'grey':
@@ -561,8 +649,7 @@ class CalculatorScreen(BoxLayout):
                 elif text == '=':
                     btn.bind(on_press=self.calculate)
 
-                if text == '0': btn.size_hint_x = 2
-                else: btn.size_hint_x = 1
+                btn.size_hint_x = 2 if text == '0' else 1
                 row.add_widget(btn)
             grid.add_widget(row)
 
@@ -572,29 +659,111 @@ class CalculatorScreen(BoxLayout):
         create_row([('1', 'num'), ('2', 'num'), ('3', 'num'), ('+', 'accent')])
         create_row([('0', 'num'), ('.', 'num'), ('=', 'find')])
 
-        self.add_widget(grid)
+        self.body.add_widget(grid)
 
     def on_press(self, char):
-        if char == 'C': self.expression = ""
-        elif char == '<-': self.expression = self.expression[:-1]
-        else: self.expression += char
+        if char == 'C':
+            self.expression = ""
+        elif char == '<-':
+            self.expression = self.expression[:-1]
+        else:
+            self.expression += char
         self.display.text = self.expression
 
     def calculate(self, *args):
         try:
-            if not self.expression: return
+            if not self.expression:
+                return
             safe_expr = "".join([c for c in self.expression if c in "0123456789+-*/.%"])
             result = eval(safe_expr)
-            if isinstance(result, float) and result.is_integer(): result = int(result)
+            if isinstance(result, float) and result.is_integer():
+                result = int(result)
             self.expression = str(result)
             self.display.text = self.expression
         except Exception:
             self.display.text = "Ошибка"
             self.expression = ""
 
-class SettingsScreen(BoxLayout):
+
+class TranslatorScreen(TabScreen):
     def __init__(self, **kwargs):
-        super().__init__(orientation="vertical", padding=[dp(15), dp(20), dp(15), dp(10)], spacing=dp(15), **kwargs)
+        super().__init__(spacing=dp(15), **kwargs)
+        self.lang_src = 'en'
+        self._busy = False
+
+        scroll = ScrollView()
+        layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(15))
+        layout.bind(minimum_height=layout.setter('height'))
+
+        layout.add_widget(Label(text="Переводчик", font_name=FONT_NAME, color=PALETTE["subtext"],
+                                size_hint=(1, None), height=dp(20), bold=True, halign="left"))
+
+        self.input = GlassInput(hint_text="Введите текст...", multiline=True,
+                                size_hint=(1, None), height=dp(120))
+        layout.add_widget(self.input)
+
+        lang_row = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(45), spacing=dp(5))
+        self.btn_en = BorderedButton(text="EN → RU", font_size=sp(14), is_active=True)
+        self.btn_de = BorderedButton(text="DE → RU", font_size=sp(14))
+        self.btn_en.bind(on_press=lambda inst: self.set_lang('en'))
+        self.btn_de.bind(on_press=lambda inst: self.set_lang('de'))
+        lang_row.add_widget(self.btn_en)
+        lang_row.add_widget(self.btn_de)
+        layout.add_widget(lang_row)
+
+        self.btn_go = BorderedButton(text="ПЕРЕВЕСТИ", is_find=True, bold=True,
+                                     size_hint=(1, None), height=dp(55), font_size=sp(16))
+        self.btn_go.bind(on_press=self.do_translate)
+        layout.add_widget(self.btn_go)
+
+        self.result_card = ResultCard()
+        self.res_lbl = self.result_card.res_lbl
+        layout.add_widget(self.result_card)
+
+        layout.add_widget(Label(text="Для перевода нужен интернет", font_name=FONT_NAME,
+                                color=PALETTE["subtext"], font_size=sp(11),
+                                size_hint=(1, None), height=dp(20)))
+
+        scroll.add_widget(layout)
+        self.body.add_widget(scroll)
+
+    def set_lang(self, code):
+        self.lang_src = code
+        self.btn_en.is_active = (code == 'en')
+        self.btn_de.is_active = (code == 'de')
+
+    def do_translate(self, *args):
+        if self._busy:
+            return
+        text = self.input.text.strip()
+        if not text:
+            self.show_result("Введите текст")
+            return
+        self._busy = True
+        self.show_result("Перевожу...")
+        threading.Thread(target=self._worker, args=(text, self.lang_src), daemon=True).start()
+
+    def _worker(self, text, src):
+        try:
+            result = translate_text(text, src)
+        except Exception:
+            result = "Ошибка: Нет интернета"
+        Clock.schedule_once(lambda dt: self._done(result))
+
+    def _done(self, result):
+        self._busy = False
+        self.show_result(result)
+
+    def show_result(self, text):
+        self.res_lbl.text = text
+        self.res_lbl.texture_update()
+        self.result_card.height = self.res_lbl.texture_size[1] + dp(30)
+        self.res_lbl.height = self.res_lbl.texture_size[1]
+
+
+class SettingsScreen(TabScreen):
+    def __init__(self, **kwargs):
+        super().__init__(spacing=dp(15), **kwargs)
         settings = get_settings()
 
         scroll = ScrollView()
@@ -619,7 +788,8 @@ class SettingsScreen(BoxLayout):
                 content.add_widget(btn_send)
             else:
                 scroll_pop = ScrollView()
-                lbl = Label(text=content_text, font_name=FONT_NAME, color=PALETTE["text"], size_hint_y=None, halign="left", valign="top", markup=True)
+                lbl = Label(text=content_text, font_name=FONT_NAME, color=PALETTE["text"],
+                            size_hint_y=None, halign="left", valign="top", markup=True)
                 lbl.bind(width=lambda inst, w: setattr(inst, 'text_size', (w, None)))
                 lbl.bind(texture_size=lbl.setter('size'))
                 scroll_pop.add_widget(lbl)
@@ -628,11 +798,17 @@ class SettingsScreen(BoxLayout):
             btn_close = BorderedButton(text="Закрыть", size_hint=(1, None), height=dp(45))
             content.add_widget(btn_close)
 
-            popup = Popup(title=title, title_font=FONT_NAME, title_color=PALETTE["text"], content=content, size_hint=(0.9, 0.7), background_color=PALETTE["card"], separator_color=PALETTE["accent"])
+            popup = Popup(title=title, title_font=FONT_NAME, title_color=PALETTE["text"],
+                          content=content, size_hint=(0.9, 0.7),
+                          background_color=PALETTE["card"], separator_color=PALETTE["accent"])
             btn_close.bind(on_press=popup.dismiss)
             popup.open()
 
-        layout.add_widget(Label(text="КАСТОМИЗАЦИЯ", font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+        def section_label(text):
+            return Label(text=text, font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11),
+                         bold=True, size_hint=(1, None), height=dp(30), halign="left")
+
+        layout.add_widget(section_label("КАСТОМИЗАЦИЯ"))
 
         card1 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card1.bind(minimum_height=card1.setter('height'))
@@ -643,46 +819,39 @@ class SettingsScreen(BoxLayout):
             s["theme"] = new_theme
             save_settings(s)
             apply_theme(new_theme)
-            
-            # ФИКС: Не кидает на Поиск
-            main_layout = App.get_running_app().root.children[0] if App.get_running_app().root.children else None
-            current_tab = main_layout.current_tab if (main_layout and hasattr(main_layout, 'current_tab')) else 2
-            
-            App.get_running_app().root.clear_widgets()
-            App.get_running_app().root.add_widget(MainLayout(start_tab=current_tab))
+            App.get_running_app().show_main("settings")
 
         def toggle_glow(instance, value):
             s = get_settings()
             s["glow"] = value
             PALETTE["glow"] = value
             save_settings(s)
-            
-            # ФИКС: Не кидает на Поиск
-            main_layout = App.get_running_app().root.children[0] if App.get_running_app().root.children else None
-            current_tab = main_layout.current_tab if (main_layout and hasattr(main_layout, 'current_tab')) else 2
+            App.get_running_app().show_main("settings")
 
-            App.get_running_app().root.clear_widgets()
-            App.get_running_app().root.add_widget(MainLayout(start_tab=current_tab))
-
-        card1.add_widget(SettingsRow(icon_code="\ue51c", title="Темная тема", has_switch=True, switch_active=(settings.get("theme", "dark") == "dark"), on_switch=toggle_theme))
+        card1.add_widget(SettingsRow(icon_code="\ue51c", title="Темная тема", has_switch=True,
+                                     switch_active=(settings.get("theme", "dark") == "dark"),
+                                     on_switch=toggle_theme))
         card1.add_widget(Divider())
-        card1.add_widget(SettingsRow(icon_code="\ue40a", title="Цвет оформления", has_arrow=True, on_press=lambda: show_popup("Цвет оформления", "Бордовый цвет закреплён как фирменный стиль Offline GDZ.")))
+        card1.add_widget(SettingsRow(icon_code="\ue40a", title="Цвет оформления", has_arrow=True,
+                                     on_press=lambda: show_popup("Цвет оформления", "Бордовый цвет закреплён как фирменный стиль Offline GDZ.")))
         card1.add_widget(Divider())
-        card1.add_widget(SettingsRow(icon_code="\ue838", title="Свечение", has_switch=True, switch_active=settings.get("glow", True), on_switch=toggle_glow))
+        card1.add_widget(SettingsRow(icon_code="\ue838", title="Свечение", has_switch=True,
+                                     switch_active=settings.get("glow", True), on_switch=toggle_glow))
         layout.add_widget(card1)
 
-        layout.add_widget(Label(text="ПОДДЕРЖКА", font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+        layout.add_widget(section_label("ПОДДЕРЖКА"))
 
         card2 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card2.bind(minimum_height=card2.setter('height'))
-        card2.add_widget(SettingsRow(icon_code="\ue0b7", title="Чат поддержки", has_arrow=True, on_press=lambda: show_popup("Чат поддержки", "", is_chat=True)))
+        card2.add_widget(SettingsRow(icon_code="\ue0b7", title="Чат поддержки", has_arrow=True,
+                                     on_press=lambda: show_popup("Чат поддержки", "", is_chat=True)))
         card2.add_widget(Divider())
 
         faq_text = """[b]1. Как найти решение задачи?[/b]
 Выберите класс, предмет, введите номер задачи и нажмите «НАЙТИ».
 
 [b]2. Приложение работает без интернета?[/b]
-Да, вся база данных встроена в приложение. Интернет не нужен.
+Да, вся база данных встроена в приложение. Интернет нужен только для вкладки «Переводчик».
 
 [b]3. Как работает калькулятор?[/b]
 Вкладка «Калькулятор» внизу. Поддерживает +, -, *, /, %, точку и удаление.
@@ -708,14 +877,16 @@ class SettingsScreen(BoxLayout):
 [b]10. Приложение бесплатное?[/b]
 Да, полностью бесплатно и без рекламы."""
 
-        card2.add_widget(SettingsRow(icon_code="\ue8fd", title="FAQ", has_arrow=True, on_press=lambda: show_popup("FAQ", faq_text)))
+        card2.add_widget(SettingsRow(icon_code="\ue8fd", title="FAQ", has_arrow=True,
+                                     on_press=lambda: show_popup("FAQ", faq_text)))
         layout.add_widget(card2)
 
-        layout.add_widget(Label(text="ИНФОРМАЦИЯ", font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+        layout.add_widget(section_label("ИНФОРМАЦИЯ"))
 
         card3 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card3.bind(minimum_height=card3.setter('height'))
-        card3.add_widget(SettingsRow(icon_code="\ue88e", title="О проекте", has_arrow=True, on_press=lambda: show_popup("О проекте", "Offline GDZ — это ваш надежный оффлайн-помощник в учебе. Мы создали это приложение, чтобы каждый ученик мог быстро найти правильное решение домашнего задания без необходимости подключаться к интернету.")))
+        card3.add_widget(SettingsRow(icon_code="\ue88e", title="О проекте", has_arrow=True,
+                                     on_press=lambda: show_popup("О проекте", "Offline GDZ — это ваш надежный оффлайн-помощник в учебе. Мы создали это приложение, чтобы каждый ученик мог быстро найти правильное решение домашнего задания без необходимости подключаться к интернету.")))
 
         changelog_text = """[b]v1.6V (Текущая)[/b]
 • Добавлен калькулятор с 4 операциями
@@ -731,14 +902,12 @@ class SettingsScreen(BoxLayout):
 [b]v1.0[/b]
 • Первый релиз"""
 
-        def show_changelog(*args):
-            show_popup("Ченджлог", changelog_text)
-
         card3.add_widget(Divider())
-        card3.add_widget(SettingsRow(icon_code="\ue8e5", title="Ченджлог", has_arrow=True, on_press=show_changelog))
+        card3.add_widget(SettingsRow(icon_code="\ue8e5", title="Ченджлог", has_arrow=True,
+                                     on_press=lambda: show_popup("Ченджлог", changelog_text)))
         layout.add_widget(card3)
 
-        layout.add_widget(Label(text="ДАННЫЕ", font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+        layout.add_widget(section_label("ДАННЫЕ"))
 
         card4 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card4.bind(minimum_height=card4.setter('height'))
@@ -747,26 +916,74 @@ class SettingsScreen(BoxLayout):
             s = get_settings()
             s["history"] = []
             save_settings(s)
-            if CLICK_SOUND: CLICK_SOUND.play()
-            App.get_running_app().root.clear_widgets()
-            App.get_running_app().root.add_widget(MainLayout(start_tab=2))
+            if CLICK_SOUND:
+                CLICK_SOUND.play()
+            main = App.get_running_app().main
+            if main is not None:
+                main.search.update_history_ui()
 
-        card4.add_widget(SettingsRow(icon_code="\ue872", title="Очистить историю", has_arrow=True, text_color=C_RED, on_press=clear_hist))
+        card4.add_widget(SettingsRow(icon_code="\ue872", title="Очистить историю", has_arrow=True,
+                                     text_color=C_RED, on_press=clear_hist))
         layout.add_widget(card4)
 
-        layout.add_widget(Label(text="О НАС", font_name=FONT_NAME, color=PALETTE["subtext"], font_size=sp(11), bold=True, size_hint=(1, None), height=dp(30), halign="left"))
+        layout.add_widget(section_label("О НАС"))
 
         card5 = CustomCard(orientation="vertical", padding=0, size_hint_y=None)
         card5.bind(minimum_height=card5.setter('height'))
         card5.add_widget(SettingsRow(icon_code="\ue32c", title="Версия 1.6V", has_arrow=False))
         card5.add_widget(Divider())
-        card5.add_widget(SettingsRow(icon_code="\ue163", title="Telegram-канал", has_arrow=True, on_press=lambda: webbrowser.open(TG_LINK)))
+        card5.add_widget(SettingsRow(icon_code="\ue163", title="Telegram-канал", has_arrow=True,
+                                     on_press=lambda: webbrowser.open(TG_LINK)))
         layout.add_widget(card5)
 
         layout.add_widget(Widget(size_hint=(1, None), height=dp(20)))
 
         scroll.add_widget(layout)
-        self.add_widget(scroll)
+        self.body.add_widget(scroll)
+
+
+class MainScreen(Screen):
+    """Главный экран: внутренний ScreenManager с вкладками + нижняя навигация.
+    Вкладки создаются один раз и не пересоздаются при переключении."""
+    TABS = [("search", "Поиск"), ("calc", "Калькулятор"),
+            ("translate", "Переводчик"), ("settings", "Настройки")]
+
+    def __init__(self, start_tab="search", **kwargs):
+        super().__init__(**kwargs)
+        Window.clearcolor = PALETTE["bg"]
+
+        root = BoxLayout(orientation="vertical")
+
+        self.tabs = ScreenManager(transition=NoTransition())
+        self.search = SearchScreen(name="search")
+        self.tabs.add_widget(self.search)
+        self.tabs.add_widget(CalculatorScreen(name="calc"))
+        self.tabs.add_widget(TranslatorScreen(name="translate"))
+        self.tabs.add_widget(SettingsScreen(name="settings"))
+        root.add_widget(self.tabs)
+
+        nav_bar = BoxLayout(size_hint=(1, None), height=dp(60), spacing=dp(5),
+                            padding=[dp(5), dp(5), dp(5), dp(5)])
+        self.nav_buttons = {}
+        for name, title in self.TABS:
+            btn = BorderedButton(text=title, bold=True, radius=dp(8), font_size=sp(11))
+            btn.bind(on_press=lambda inst, n=name: self.switch_tab(n))
+            nav_bar.add_widget(btn)
+            self.nav_buttons[name] = btn
+        root.add_widget(nav_bar)
+
+        self.add_widget(root)
+        self.switch_tab(start_tab)
+
+    def switch_tab(self, name):
+        self.tabs.current = name
+        for n, btn in self.nav_buttons.items():
+            btn.is_active = (n == name)
+
+    def shutdown(self):
+        """Останавливаем таймеры перед удалением экрана."""
+        self.search.stop_online()
+
 
 # ============ ЗАПУСК ============
 class GdzApp(App):
@@ -776,9 +993,28 @@ class GdzApp(App):
         PALETTE["glow"] = s.get("glow", True)
         Window.clearcolor = PALETTE["bg"]
         self.title = "Offline GDZ"
-        root = BoxLayout(orientation="vertical")
-        root.add_widget(SplashScreen())
-        return root
+
+        self.main = None
+        self._main_n = 0
+        self.sm = ScreenManager(transition=NoTransition())
+        self.sm.add_widget(SplashScreen(name="splash"))
+        return self.sm
+
+    def show_main(self, tab="search"):
+        """Показать главный экран (первый раз - после заставки; повторно - при смене темы/свечения)."""
+        Window.clearcolor = PALETTE["bg"]
+        self._main_n += 1
+        new = MainScreen(name=f"main{self._main_n}", start_tab=tab)
+        old = self.main
+        self.sm.add_widget(new)
+        self.sm.current = new.name
+        self.main = new
+        if old is not None:
+            old.shutdown()
+            self.sm.remove_widget(old)
+        elif self.sm.has_screen("splash"):
+            self.sm.remove_widget(self.sm.get_screen("splash"))
+
 
 if __name__ == "__main__":
     GdzApp().run()
