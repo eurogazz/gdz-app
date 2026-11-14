@@ -425,12 +425,19 @@ def split_text(text, limit=MYMEMORY_LIMIT):
 
 
 def translate_text(text, direction_key):
-    """Сначала GoogleTranslator; при TooManyRequests/Timeout/RequestError - MyMemoryTranslator."""
+    """Сначала GoogleTranslator; для RU-DE MyMemory включается только при лимите/таймауте."""
     try:
         result = run_with_timeout(
             lambda: build_translator(direction_key).translate(text), (), PRIMARY_TIMEOUT)
     except Exception as e:
-        if not should_fallback(e):
+        if direction_key == "ru_de":
+            error_name = type(e).__name__
+            use_fallback = (error_name == "TooManyRequests"
+                            or isinstance(e, (TranslationTimeout, TimeoutError))
+                            or "Timeout" in error_name)
+        else:
+            use_fallback = should_fallback(e)
+        if not use_fallback:
             raise
         translator = build_fallback_translator(direction_key)
         parts = [translator.translate(chunk) or "" for chunk in split_text(text)]
@@ -752,62 +759,6 @@ class ArrowButton(BorderedButton):
     def _place(self, *a):
         if hasattr(self, "arrow"):
             self.arrow.center = self.center
-
-
-class StarIcon(Widget):
-    """Звезда избранного: контур всегда, заливка - когда filled=True."""
-    filled = BooleanProperty(False)
-
-    def __init__(self, **kwargs):
-        super().__init__(size_hint=(None, None), size=(dp(24), dp(24)), **kwargs)
-        with self.canvas:
-            self._fill_c = Color(0, 0, 0, 0)
-            self._tris = [Triangle(points=[0, 0, 0, 0, 0, 0]) for _ in range(10)]
-            self._line_c = Color(*PALETTE["subtext"])
-            self._line = Line(points=[0] * 20, width=dp(1.4), close=True, joint='round')
-        self.bind(pos=self._update, size=self._update, filled=self._recolor)
-        self._recolor()
-        self._update()
-
-    def _recolor(self, *a):
-        if self.filled:
-            self._fill_c.rgba = C_GOLD
-            self._line_c.rgba = C_GOLD
-        else:
-            self._fill_c.rgba = (0, 0, 0, 0)
-            self._line_c.rgba = PALETTE["subtext"]
-
-    def _update(self, *a):
-        cx, cy = self.center
-        big = min(self.width, self.height) / 2.0
-        small = big * 0.42
-        pts = []
-        for i in range(10):
-            ang = math.pi / 2 + i * math.pi / 5
-            rad = big if i % 2 == 0 else small
-            pts += [cx + rad * math.cos(ang), cy + rad * math.sin(ang)]
-        self._line.points = pts
-        for i, tri in enumerate(self._tris):
-            j = (i + 1) % 10
-            tri.points = [cx, cy, pts[2 * i], pts[2 * i + 1], pts[2 * j], pts[2 * j + 1]]
-
-
-class StarButton(BorderedButton):
-    """Кнопка избранного со звездой."""
-
-    def __init__(self, **kwargs):
-        super().__init__(text="", **kwargs)
-        self.star = StarIcon()
-        self.add_widget(self.star)
-        self.bind(pos=self._place, size=self._place)
-        self._place()
-
-    def _place(self, *a):
-        if hasattr(self, "star"):
-            self.star.center = self.center
-
-    def set_favorite(self, value):
-        self.star.filled = bool(value)
 
 
 class CoverPlaceholder(BoxLayout):
@@ -1172,7 +1123,7 @@ class SolutionPopup:
         content = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(10))
         nav = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(48), spacing=dp(8))
         self.btn_prev = ArrowButton(direction="left", radius=dp(12))
-        self.btn_star = StarButton(radius=dp(12))
+        self.btn_star = BorderedButton(text="★", radius=dp(12), font_size=sp(24), color=C_GOLD)
         self.btn_next = ArrowButton(direction="right", radius=dp(12))
         nav.add_widget(self.btn_prev)
         nav.add_widget(self.btn_star)
@@ -1239,7 +1190,7 @@ class SolutionPopup:
             self.text_box.add_widget(self._label("Для этой задачи решение не добавлено."))
 
         self.btn_star.disabled = False
-        self.btn_star.set_favorite(task["id"] in get_favorites())
+        self.btn_star.color = C_GOLD
         order = get_tasks(task["book_id"])  # один запрос на книгу вместо двух
         self.btn_prev.disabled = adjacent_in_list(order, task["id"], -1) is None
         self.btn_next.disabled = adjacent_in_list(order, task["id"], 1) is None
@@ -1255,7 +1206,7 @@ class SolutionPopup:
         if self.task is None:
             return
         state = toggle_favorite(self.task["id"])
-        self.btn_star.set_favorite(state)
+        self.btn_star.color = C_GOLD
         if self.on_favorite:
             self.on_favorite(self.task["id"], state)
 
@@ -1278,8 +1229,9 @@ class SearchScreen(TabScreen):
         top.bind(minimum_height=top.setter('height'))
         head = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(44))
         head.add_widget(make_label("Поиск ГДЗ", size=26, bold=True))
-        self.btn_favorites = StarButton(size_hint=(None, None), size=(dp(44), dp(44)), radius=dp(12))
-        self.btn_favorites.set_favorite(True)
+        self.btn_favorites = BorderedButton(text="★", size_hint=(None, None),
+                                             size=(dp(44), dp(44)), radius=dp(12),
+                                             font_size=sp(25), color=C_GOLD)
         self.btn_favorites.bind(on_release=lambda *a: self.open_favorites())
         head.add_widget(self.btn_favorites)
         top.add_widget(head)
@@ -1447,9 +1399,22 @@ class SearchScreen(TabScreen):
             card.add_widget(Image(source=cover, size_hint=(1, None), height=BOOK_COVER_H))
         else:
             card.add_widget(CoverPlaceholder(size_hint=(1, None), height=BOOK_COVER_H))
-        card.add_widget(make_label(book["author"], size=12, color=PALETTE["subtext"],
-                                   height=16, shorten=True))
-        card.add_widget(make_label(book["title"], size=14, bold=True, height=40))
+        author_lbl = Label(text=book["author"], font_size=sp(12), color=PALETTE["subtext"],
+                           halign="left", valign="middle", size_hint=(1, None),
+                           shorten=True, max_lines=1)
+        title_lbl = Label(text=book["title"], font_size=sp(14), color=PALETTE["text"],
+                          bold=True, halign="left", valign="middle", size_hint=(1, None),
+                          shorten=True, max_lines=2)
+
+        def fit_card_label(label, width):
+            label.text_size = (max(1, width), None)
+            label.texture_update()
+            label.height = label.texture_size[1]
+
+        for label in (author_lbl, title_lbl):
+            label.bind(width=lambda inst, width: fit_card_label(inst, width))
+            fit_card_label(label, BOOK_CARD_W - dp(20))
+            card.add_widget(label)
         card.bind(on_release=lambda inst, b=book: self.show_tasks(b))
         return card
 
@@ -1463,7 +1428,7 @@ class SearchScreen(TabScreen):
         col = self._scroll_column(page)
         tasks = get_tasks(book["id"])
         if not tasks:
-            col.add_widget(self._message_card(db_empty_text()))
+            col.add_widget(self._message_card("В этом учебнике пока нет решений"))
         else:
             grid = self._grid(5, dp(52))
             col.add_widget(grid)
