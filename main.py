@@ -43,8 +43,17 @@ ADMIN_TAPS = 7            # столько нажатий на версию по
 ADMIN_TAP_INTERVAL = 1.5  # максимум секунд между соседними нажатиями
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "gdz.db")
+DB_PATH = os.path.join(BASE_DIR, 'gdz.db')  # файл базы без расширения, лежит рядом с main.py
 LOGO_PATH = os.path.join(BASE_DIR, "logo.png")
+
+
+def get_image_path(db_image_path):
+    if not db_image_path:
+        return ""
+    # Убираем возможные обратные слэши
+    clean_path = db_image_path.replace('\\', '/')
+    return os.path.join(BASE_DIR, clean_path)
+
 
 TRANSITION_TIME = 0.3
 CARD_RADIUS = dp(16)
@@ -190,7 +199,7 @@ def db_empty_text():
 
 
 def db_query(sql, params=()):
-    """SELECT к gdz.db. Если файла нет, база пустая или повреждена - возвращает [] и не падает."""
+    """SELECT к базе (файл gdz). Если файла нет, база пустая или повреждена - возвращает [] и не падает."""
     if not db_available():
         return []
     conn = None
@@ -275,8 +284,8 @@ def existing_file(rel_path):
     """Полный путь к файлу (относительно папки приложения), если он существует, иначе None."""
     if not rel_path or not isinstance(rel_path, str):
         return None
-    full = os.path.join(BASE_DIR, rel_path)
-    return full if os.path.exists(full) and os.path.isfile(full) else None
+    full = get_image_path(rel_path)
+    return full if full and os.path.exists(full) and os.path.isfile(full) else None
 
 
 def _clean_favorites(raw):
@@ -1231,8 +1240,9 @@ class SolutionPopup:
 
         self.btn_star.disabled = False
         self.btn_star.set_favorite(task["id"] in get_favorites())
-        self.btn_prev.disabled = get_adjacent_task(task["book_id"], task["id"], -1) is None
-        self.btn_next.disabled = get_adjacent_task(task["book_id"], task["id"], 1) is None
+        order = get_tasks(task["book_id"])  # один запрос на книгу вместо двух
+        self.btn_prev.disabled = adjacent_in_list(order, task["id"], -1) is None
+        self.btn_next.disabled = adjacent_in_list(order, task["id"], 1) is None
 
     def step(self, direction):
         if self.task is None:
