@@ -6,9 +6,10 @@ package.domain = org.beamforge
 
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,db,webp,ttf,wav
+source.include_patterns = covers/*
 source.exclude_dirs = bin,.buildozer,__pycache__
 
-version = 1.6
+version = 2.1.0
 # НОРМАЛЬНЫЕ ЗАВИСИМОСТИ ДЛЯ deep-translator
 requirements = python3,kivy,requests,urllib3,chardet,idna,certifi,beautifulsoup4,soupsieve,deep-translator
 
