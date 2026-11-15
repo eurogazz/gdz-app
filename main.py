@@ -223,13 +223,22 @@ def subject_title(raw):
 
 
 def get_subjects(cls):
-    rows = db_query('SELECT DISTINCT subject FROM books WHERE "class" = ? ORDER BY subject', (cls,))
+    rows = db_query(
+        'SELECT DISTINCT b.subject FROM books b '
+        'JOIN tasks t ON b.id = t.book_id '
+        'WHERE b."class" = ? ORDER BY b.subject',
+        (cls,)
+    )
     return [r[0] for r in rows if r[0] is not None and str(r[0]).strip()]
 
 
 def get_books(cls, subject):
-    rows = db_query('SELECT id, author, title, cover_image_path FROM books '
-                    'WHERE "class" = ? AND subject = ? ORDER BY title', (cls, subject))
+    rows = db_query(
+        'SELECT DISTINCT b.id, b.author, b.title, b.cover_image_path '
+        'FROM books b JOIN tasks t ON b.id = t.book_id '
+        'WHERE b."class" = ? AND b.subject = ? ORDER BY b.title',
+        (cls, subject)
+    )
     return [{"id": r[0], "author": (r[1] or "").strip(),
              "title": (r[2] or "").strip() or "Без названия", "cover": r[3]} for r in rows]
 
@@ -668,6 +677,50 @@ class BorderedButton(Button):
         self._bg_r.size = (w, h)
         self._bg_r.radius = [r]
         self._line.rounded_rectangle = (self.x, self.y, w, h, r)
+
+
+class StarButton(BorderedButton):
+    """Звезда рисуется непосредственно на холсте кнопки и привязана к её центру."""
+    is_favorite = BooleanProperty(False)
+
+    def __init__(self, is_favorite=False, **kwargs):
+        kwargs.setdefault("text", "")
+        super().__init__(**kwargs)
+        self.is_favorite = is_favorite
+        with self.canvas.after:
+            self._star_fill_color = Color(*C_GOLD)
+            self._star_triangles = [
+                Triangle(points=[0, 0, 0, 0, 0, 0]) for _ in range(10)
+            ]
+            self._star_line_color = Color(*WHITE)
+            self._star_outline = Line(
+                points=[0, 0, 0, 0], close=True, width=dp(1.8)
+            )
+        self.bind(pos=self._update_star, size=self._update_star,
+                  is_favorite=self._update_star)
+        self._update_star()
+
+    def _update_star(self, *args):
+        cx, cy = self.center
+        radius = max(dp(2), min(self.width, self.height) * 0.36)
+        inner = radius * 0.43
+        points = []
+        for i in range(10):
+            angle = -math.pi / 2 + i * math.pi / 5
+            r = radius if i % 2 == 0 else inner
+            points.append((cx + math.cos(angle) * r,
+                           cy + math.sin(angle) * r))
+        for i, triangle in enumerate(self._star_triangles):
+            a, b = points[i], points[(i + 1) % 10]
+            triangle.points = [cx, cy, a[0], a[1], b[0], b[1]]
+        outline = []
+        for x, y in points:
+            outline.extend((x, y))
+        self._star_outline.points = outline
+        self._star_fill_color.rgba = (
+            C_GOLD if self.is_favorite else (1, 1, 1, 0)
+        )
+        self._star_line_color.rgba = C_GOLD if self.is_favorite else WHITE
 
 
 class ArrowIcon(Widget):
@@ -1123,7 +1176,7 @@ class SolutionPopup:
         content = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(10))
         nav = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(48), spacing=dp(8))
         self.btn_prev = ArrowButton(direction="left", radius=dp(12))
-        self.btn_star = BorderedButton(text="★", radius=dp(12), font_size=sp(24), color=C_GOLD)
+        self.btn_star = StarButton(size_hint=(1, 1), radius=dp(12), is_favorite=False)
         self.btn_next = ArrowButton(direction="right", radius=dp(12))
         nav.add_widget(self.btn_prev)
         nav.add_widget(self.btn_star)
@@ -1153,6 +1206,26 @@ class SolutionPopup:
 
     @staticmethod
     def _label(text):
+        text = str(text or "")
+        fraction_pattern = re.compile(r"\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}")
+        previous = None
+        while previous != text:
+            previous = text
+            text = fraction_pattern.sub(
+                lambda match: f"{match.group(1)}/{match.group(2)}", text
+            )
+        text = re.sub(r"\\(?:left|right)\b", "", text)
+        text = re.sub(r"\\text\s*\{([^{}]*)\}", r"\1", text)
+        replacements = {
+            r"\,": " ", r"\;": " ", r"\!": "",
+            r"\cdot": "·", r"\times": "×", r"\div": "÷",
+            r"\pi": "π", r"\leq": "≤", r"\geq": "≥", r"\neq": "≠",
+        }
+        for latex, plain in replacements.items():
+            text = text.replace(latex, plain)
+        text = text.replace("{", "").replace("}", "")
+        text = text.replace("\\", "")
+        text = re.sub(r"[ \t]+", " ", text)
         lbl = Label(text=text, font_size=sp(15), color=PALETTE["text"], halign="left",
                     valign="top", size_hint_y=None, height=dp(20))
 
@@ -1190,7 +1263,7 @@ class SolutionPopup:
             self.text_box.add_widget(self._label("Для этой задачи решение не добавлено."))
 
         self.btn_star.disabled = False
-        self.btn_star.color = C_GOLD
+        self.btn_star.is_favorite = self.task["id"] in set(get_favorites())
         order = get_tasks(task["book_id"])  # один запрос на книгу вместо двух
         self.btn_prev.disabled = adjacent_in_list(order, task["id"], -1) is None
         self.btn_next.disabled = adjacent_in_list(order, task["id"], 1) is None
@@ -1206,7 +1279,7 @@ class SolutionPopup:
         if self.task is None:
             return
         state = toggle_favorite(self.task["id"])
-        self.btn_star.color = C_GOLD
+        self.btn_star.is_favorite = state
         if self.on_favorite:
             self.on_favorite(self.task["id"], state)
 
@@ -1229,9 +1302,8 @@ class SearchScreen(TabScreen):
         top.bind(minimum_height=top.setter('height'))
         head = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(44))
         head.add_widget(make_label("Поиск ГДЗ", size=26, bold=True))
-        self.btn_favorites = BorderedButton(text="★", size_hint=(None, None),
-                                             size=(dp(44), dp(44)), radius=dp(12),
-                                             font_size=sp(25), color=C_GOLD)
+        self.btn_favorites = StarButton(size_hint=(None, None),
+                                         size=(dp(44), dp(44)), radius=dp(12))
         self.btn_favorites.bind(on_release=lambda *a: self.open_favorites())
         head.add_widget(self.btn_favorites)
         top.add_widget(head)
@@ -1362,8 +1434,14 @@ class SearchScreen(TabScreen):
             col.add_widget(self._message_card(db_empty_text()))
         else:
             grid = self._grid(2, dp(60))
+            shown_titles = set()
             for raw in subjects:
-                btn = BorderedButton(text=subject_title(raw), font_size=sp(15))
+                title = subject_title(raw)
+                title_key = title.strip().casefold()
+                if title_key in shown_titles:
+                    continue
+                shown_titles.add(title_key)
+                btn = BorderedButton(text=title, font_size=sp(15))
                 btn.bind(on_release=lambda inst, r=raw: self.show_books(r))
                 grid.add_widget(btn)
             col.add_widget(grid)
