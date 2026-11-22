@@ -106,7 +106,7 @@ CLASSES = [5, 6, 7, 8, 9, 10, 11]
 
 # Названия предметов из базы (англ.) -> показываем по-русски. Неизвестные показываются как есть.
 SUBJECT_NAMES = {
-    "math": "Математика", "mathematics": "Математика", "algebra": "Алгебра",
+    "math": "Математика", "mathematics": "Математика", "matematika": "Математика", "algebra": "Алгебра",
     "geometry": "Геометрия", "russian": "Русский язык", "russian language": "Русский язык",
     "english": "Английский язык", "german": "Немецкий язык", "french": "Французский язык",
     "spanish": "Испанский язык", "physics": "Физика", "chemistry": "Химия",
@@ -1237,6 +1237,10 @@ class SolutionPopup:
         lbl.bind(width=on_width)
         return lbl
 
+    def _update_size(self, *args):
+        self.text_box.do_layout()
+        self.scroll.do_layout()
+
     def load(self, task_id):
         task = get_task(task_id)
         self.text_box.clear_widgets()
@@ -1245,6 +1249,8 @@ class SolutionPopup:
             self.task = None
             self.popup.title = "Задача"
             self.text_box.add_widget(self._label("Задача не найдена в базе."))
+            self.scroll.scroll_y = 1
+            Clock.schedule_once(self._update_size, 0.1)
             self.btn_prev.disabled = True
             self.btn_next.disabled = True
             self.btn_star.disabled = True
@@ -1261,6 +1267,9 @@ class SolutionPopup:
                 self.text_box.add_widget(self._label(chunk))
         elif not image:
             self.text_box.add_widget(self._label("Для этой задачи решение не добавлено."))
+
+        self.scroll.scroll_y = 1
+        Clock.schedule_once(self._update_size, 0.1)
 
         self.btn_star.disabled = False
         self.btn_star.is_favorite = self.task["id"] in set(get_favorites())
@@ -1303,7 +1312,8 @@ class SearchScreen(TabScreen):
         head = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(44))
         head.add_widget(make_label("Поиск ГДЗ", size=26, bold=True))
         self.btn_favorites = StarButton(size_hint=(None, None),
-                                         size=(dp(44), dp(44)), radius=dp(12))
+                                         size=(dp(44), dp(44)), radius=dp(12),
+                                         is_favorite=True)
         self.btn_favorites.bind(on_release=lambda *a: self.open_favorites())
         head.add_widget(self.btn_favorites)
         top.add_widget(head)
@@ -1437,7 +1447,7 @@ class SearchScreen(TabScreen):
             shown_titles = set()
             for raw in subjects:
                 title = subject_title(raw)
-                title_key = title.strip().casefold()
+                title_key = subject_title(raw).strip().casefold()
                 if title_key in shown_titles:
                     continue
                 shown_titles.add(title_key)
@@ -1543,8 +1553,7 @@ class SearchScreen(TabScreen):
         btn = self._task_buttons.get(task_id)
         if btn is not None:
             btn.is_active = is_favorite
-        if self.nav.current == "favorites":
-            self.pages["favorites"].refresh()
+        self.refresh_favorites_state()
 
 
 class TranslatorScreen(TabScreen):
