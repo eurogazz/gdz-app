@@ -56,29 +56,63 @@ jobs:
       - name: Verify APK contains the database
         run: |
           python3 - <<'PY'
-          import io, pathlib, sys, zipfile
+          import io
+          import pathlib
+          import tarfile
+          import zipfile
+
           apks = list(pathlib.Path('bin').glob('*.apk'))
           assert apks, 'APK не создан'
-          found = False
+
+          def find_db_in_tar(data, label):
+              try:
+                  with tarfile.open(fileobj=io.BytesIO(data), mode='r:*') as archive:
+                      for member in archive.getmembers():
+                          if pathlib.PurePosixPath(member.name).name == 'gdz.db' and member.isfile():
+                              return f'{label} -> {member.name}'
+                          if member.isfile() and member.size > 0:
+                              nested = archive.extractfile(member)
+                              if nested:
+                                  result = find_db_in_tar(nested.read(), f'{label} -> {member.name}')
+                                  if result:
+                                      return result
+              except (tarfile.TarError, OSError, EOFError):
+                  pass
+              return None
+
+          found_at = None
           for apk_path in apks:
               with zipfile.ZipFile(apk_path) as apk:
                   for name in apk.namelist():
                       if pathlib.PurePosixPath(name).name == 'gdz.db':
-                          found = True
+                          found_at = f'{apk_path}: {name}'
                           break
                       try:
                           payload = apk.read(name)
-                          if payload[:4] == b'PK\x03\x04':
-                              with zipfile.ZipFile(io.BytesIO(payload)) as nested:
-                                  if any(pathlib.PurePosixPath(n).name == 'gdz.db' for n in nested.namelist()):
-                                      found = True
-                                      break
-                      except (KeyError, zipfile.BadZipFile, RuntimeError):
-                          pass
-              if found:
+                      except (KeyError, RuntimeError):
+                          continue
+
+                      # python-for-android stores app files in assets/private.tar.
+                      # Older packaging layouts may use private.mp3.
+                      result = find_db_in_tar(payload, f'{apk_path}: {name}')
+                      if result:
+                          found_at = result
+                          break
+              if found_at:
                   break
-          assert found, 'gdz.db не обнаружена ни в APK, ни во вложенном архиве приложения'
-          print('OK: gdz.db включена в APK')
+
+          if not found_at:
+              print('Содержимое APK:')
+              for apk_path in apks:
+                  with zipfile.ZipFile(apk_path) as apk:
+                      for name in apk.namelist():
+                          print(' -', name)
+              raise SystemExit(
+                  'ОШИБКА: gdz.db действительно не найдена в APK или assets/private.tar. '
+                  'Проверь source.include_exts и source.include_patterns в buildozer.spec.'
+              )
+
+          print('OK: gdz.db найдена:', found_at)
           PY
 
       - name: Give permissions for APK
