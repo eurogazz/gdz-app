@@ -12,22 +12,81 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ВОТ ЭТОТ НОВЫЙ ШАГ
-      - name: Download Database
-        run: wget -O gdz.db "https://github.com/eurogazz/gdz-app/releases/download/v1.0/gdz.db"
+      # Если gdz.db уже лежит в корне репозитория, используем его.
+      # Иначе скачиваем asset из GitHub Release.
+      - name: Get database
+        env:
+          DB_URL: https://github.com/eurogazz/gdz-app/releases/latest/download/gdz.db
+        run: |
+          set -euo pipefail
+          if [ ! -s gdz.db ]; then
+            echo "gdz.db не найден в корне репозитория — скачиваю из Release"
+            curl --fail --location --retry 3 --retry-delay 2 \
+              "$DB_URL" --output gdz.db
+          else
+            echo "Использую gdz.db из репозитория"
+          fi
+          test -s gdz.db
+          echo "Размер базы: $(stat -c%s gdz.db) bytes"
+
+      - name: Validate SQLite database
+        run: |
+          python3 - <<'PY'
+          import sqlite3
+          db = sqlite3.connect('file:gdz.db?mode=ro', uri=True)
+          result = db.execute('PRAGMA quick_check').fetchone()[0]
+          assert result == 'ok', f'SQLite quick_check failed: {result}'
+          tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          assert {'books', 'tasks'} <= tables, f'Missing tables: {tables}'
+          books = {r[1] for r in db.execute('PRAGMA table_info(books)')}
+          tasks = {r[1] for r in db.execute('PRAGMA table_info(tasks)')}
+          assert {'id', 'class', 'subject', 'author', 'title', 'cover'} <= books, f'Unexpected books schema: {books}'
+          assert {'id', 'book_id', 'number', 'solution', 'image_url'} <= tasks, f'Unexpected tasks schema: {tasks}'
+          print('Database OK:', db.execute('SELECT COUNT(*) FROM books').fetchone()[0], 'books;',
+                db.execute('SELECT COUNT(*) FROM tasks').fetchone()[0], 'tasks')
+          db.close()
+          PY
 
       - name: Build with Buildozer
         run: |
           docker run --rm \
-            -v ${{ github.workspace }}:/home/user/hostcwd \
+            -v "${{ github.workspace }}:/home/user/hostcwd" \
             ghcr.io/kivy/buildozer:latest android debug
 
-      - name: Give permissions for APK
+      - name: Verify APK contains the database
         run: |
-          sudo chown -R $(id -u):$(id -g) bin/ || true
+          python3 - <<'PY'
+          import io, pathlib, sys, zipfile
+          apks = list(pathlib.Path('bin').glob('*.apk'))
+          assert apks, 'APK не создан'
+          found = False
+          for apk_path in apks:
+              with zipfile.ZipFile(apk_path) as apk:
+                  for name in apk.namelist():
+                      if pathlib.PurePosixPath(name).name == 'gdz.db':
+                          found = True
+                          break
+                      try:
+                          payload = apk.read(name)
+                          if payload[:4] == b'PK\x03\x04':
+                              with zipfile.ZipFile(io.BytesIO(payload)) as nested:
+                                  if any(pathlib.PurePosixPath(n).name == 'gdz.db' for n in nested.namelist()):
+                                      found = True
+                                      break
+                      except (KeyError, zipfile.BadZipFile, RuntimeError):
+                          pass
+              if found:
+                  break
+          assert found, 'gdz.db не обнаружена ни в APK, ни во вложенном архиве приложения'
+          print('OK: gdz.db включена в APK')
+          PY
+
+      - name: Give permissions for APK
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" bin/ || true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: gdz-apk
-          path: bin/*.apk 
+          path: bin/*.apk

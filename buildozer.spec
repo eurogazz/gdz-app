@@ -6,7 +6,8 @@ package.domain = org.beamforge
 
 source.dir = .
 source.include_exts = py,png,jpg,jpeg,kv,atlas,db,webp,ttf,wav
-source.include_patterns = covers/*
+# Явно включаем БД в корне проекта и изображения обложек.
+source.include_patterns = gdz.db,covers/*
 source.exclude_dirs = bin,.buildozer,__pycache__
 
 version = 2.1.0
@@ -18,7 +19,6 @@ fullscreen = 0
 # Иконка и заставка
 icon.filename = %(source.dir)s/logo.png
 presplash.filename = %(source.dir)s/logo.png
-# Цвет фона заставки (черный) в формате RGB
 android.presplash_color = 0,0,0
 
 # Настройки Android

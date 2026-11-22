@@ -206,7 +206,9 @@ def db_query(sql, params=()):
     try:
         conn = sqlite3.connect(DB_PATH)
         return conn.execute(sql, params).fetchall()
-    except sqlite3.Error:
+    except sqlite3.Error as exc:
+        # Не скрываем причину проблем с БД: её видно в logcat/журнале сборки.
+        print(f"[GDZ] Ошибка SQLite ({DB_PATH}): {exc}")
         return []
     finally:
         if conn is not None:
@@ -234,7 +236,7 @@ def get_subjects(cls):
 
 def get_books(cls, subject):
     rows = db_query(
-        'SELECT DISTINCT b.id, b.author, b.title, b.cover_image_path '
+        'SELECT DISTINCT b.id, b.author, b.title, b.cover '
         'FROM books b JOIN tasks t ON b.id = t.book_id '
         'WHERE b."class" = ? AND b.subject = ? ORDER BY b.title',
         (cls, subject)
